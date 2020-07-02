@@ -121,6 +121,54 @@ GShopLevel<G>::GShopLevel (IndexSpace const* is, G const& gshop, const Geometry&
     // make sure ngrow is multiple of 16
     m_ngrow = IntVect{static_cast<int>(std::ceil(ngrow/16.)) * 16};
 
+#if 1
+    int num_crse = 0;
+    {
+      Box tdomain = geom.Domain();
+      for (bool ok=true; ok; ++num_crse) {
+        Box tcdomain = coarsen(tdomain,2);
+        ok = refine(tcdomain,2) == tdomain;
+        tdomain = tcdomain;
+      }
+    }
+
+    num_crse = amrex::max(num_crse - 4,4);
+    
+    int ratio = std::pow(2,num_crse);
+    Geometry tgeom(geom);
+    Box tdomain = coarsen(geom.Domain(),ratio);
+    BoxArray tba(grow(tdomain,m_ngrow / ratio));
+
+    for (int i=0; tdomain != geom.Domain(); ++i) {
+
+      tgeom.define(tdomain);
+      
+      tba.maxSize(16);
+
+      Vector<int> is_cut(tba.size(),0);
+
+      for (MFIter mfi(tba, DistributionMapping(tba)); mfi.isValid(); ++mfi)
+      {
+        const Box& vbx = mfi.validbox();
+        const Box& gbx = amrex::surroundingNodes(amrex::grow(vbx,1));
+        
+        int box_type = gshop.getBoxType(gbx, tgeom, RunOn::Gpu);
+        
+        if (box_type == gshop.mixedcells) {
+          is_cut[mfi.index()] = 1;
+        }
+      }
+      ParallelDescriptor::ReduceIntSum(&(is_cut[0]),is_cut.size());
+
+      BoxList tbl;
+      for (int i=0; i<is_cut.size(); ++i) {
+        if (is_cut[i] > 0) tbl.push_back(refine(tba[i],2));
+      }
+      tba = BoxArray(tbl);
+      tdomain = refine(tdomain, 2);
+    }
+#endif
+    
     Box domain_grown = geom.Domain();
     for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
         if (geom.isPeriodic(idim)) {
@@ -131,8 +179,12 @@ GShopLevel<G>::GShopLevel (IndexSpace const* is, G const& gshop, const Geometry&
     }
     domain_grown.grow(m_ngrow);
 
+#if 1
+    m_grids = tba;
+#else
     m_grids.define(domain_grown);
     m_grids.maxSize(max_grid_size);
+#endif
     m_dmap.define(m_grids);
 
     Vector<Box> cut_boxes;
