@@ -27,7 +27,7 @@ int main (int argc, char* argv[])
  
       EB2::SphereIF sphere(0.1, {D_DECL(0.0,0.0,0.0)}, false);
       auto gshop = EB2::makeShop(sphere); 
-      EB2::Build(gshop, geom, 0, 4, 1);
+      EB2::Build(gshop, geom, i, 4, 1);
 
       const Real timer_end = amrex::second();        
       const Real timer_tot = timer_end - timer_init;
