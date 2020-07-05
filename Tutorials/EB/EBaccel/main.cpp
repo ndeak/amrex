@@ -1,6 +1,7 @@
 #include <AMReX.H>
 #include <AMReX_EB2.H>
 #include <AMReX_EB2_IF.H>
+#include <AMReX_ParmParse.H>
 
 using namespace amrex;
 
@@ -15,12 +16,14 @@ int main (int argc, char* argv[])
     Geometry::Setup(&rb, 0, is_periodic.data());
     Geometry geom;
 
-    //for(int i=0;i<7;i++)
-    int i = 5;
+    int i;
+    ParmParse pp;
+    pp.get("i",i);
     {
       const Real timer_init = amrex::second();
       const int n_levels = 6+i;
       const int n_cells = std::pow(2,n_levels + 1);
+      //const int n_cells = 2048;
       const Box domain(IntVect(D_DECL(0,0,0)),
                        IntVect(D_DECL(n_cells-1,n_cells-1,n_cells-1)));
       geom.define(domain);
@@ -34,7 +37,6 @@ int main (int argc, char* argv[])
 
       Print() << std::endl;
       Print() << "Number of cells = " << n_cells << std::endl; 
-      Print() << "Number of levels = " << n_levels << std::endl;
       Print() << "Time = "<< timer_tot << std::endl;
     }
 
