@@ -19,7 +19,7 @@ int main (int argc, char* argv[])
     int i;
     ParmParse pp;
     pp.get("i",i);
-    AMREX_ALWAYS_ASSERT(i>0 && i<6);
+    AMREX_ALWAYS_ASSERT(i>0 && i<=6);
     {
       const Real timer_init = amrex::second();
       const int n_levels = 6+i;
