@@ -19,18 +19,18 @@ int main (int argc, char* argv[])
     int i;
     ParmParse pp;
     pp.get("i",i);
+    AMREX_ALWAYS_ASSERT(i>0 && i<6);
     {
       const Real timer_init = amrex::second();
       const int n_levels = 6+i;
       const int n_cells = std::pow(2,n_levels + 1);
-      //const int n_cells = 2048;
       const Box domain(IntVect(D_DECL(0,0,0)),
                        IntVect(D_DECL(n_cells-1,n_cells-1,n_cells-1)));
       geom.define(domain);
  
       EB2::SphereIF sphere(0.1, {D_DECL(0.0,0.0,0.0)}, false);
       auto gshop = EB2::makeShop(sphere); 
-      EB2::Build(gshop, geom, i, 4, 1);
+      EB2::Build(gshop, geom, amrex::max(0,amrex::min(i+3,6)), 4, 1);
 
       const Real timer_end = amrex::second();        
       const Real timer_tot = timer_end - timer_init;
