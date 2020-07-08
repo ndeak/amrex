@@ -20,6 +20,10 @@ int main (int argc, char* argv[])
     ParmParse pp;
     pp.get("i",i);
     AMREX_ALWAYS_ASSERT(i>0 && i<=6);
+    int Ncrse = i;
+    pp.query("Ncrse",Ncrse);
+    int Nopt = i;
+    pp.query("Nopt",Nopt);
     {
       const Real timer_init = amrex::second();
       const int n_levels = 6+i;
@@ -30,7 +34,7 @@ int main (int argc, char* argv[])
  
       EB2::SphereIF sphere(0.1, {D_DECL(0.0,0.0,0.0)}, false);
       auto gshop = EB2::makeShop(sphere); 
-      EB2::Build(gshop, geom, amrex::max(0,amrex::min(i+3,6)), 4, 1);
+      EB2::Build(gshop, geom, Ncrse, 4, 1, true, Nopt);
 
       const Real timer_end = amrex::second();        
       const Real timer_tot = timer_end - timer_init;

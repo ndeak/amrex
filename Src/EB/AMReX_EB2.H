@@ -64,7 +64,8 @@ public:
 
     IndexSpaceImp (const G& gshop, const Geometry& geom,
                    int required_coarsening_level, int max_coarsening_level,
-                   int ngrow, bool build_coarse_level_by_coarsening);
+                   int ngrow, bool build_coarse_level_by_coarsening,
+                   int num_coarsen_opt);
 
     IndexSpaceImp (IndexSpaceImp<G> const&) = delete;
     IndexSpaceImp (IndexSpaceImp<G> &&) = delete;
@@ -96,20 +97,22 @@ template <typename G>
 void
 Build (const G& gshop, const Geometry& geom,
        int required_coarsening_level, int max_coarsening_level,
-       int ngrow = 4, bool build_coarse_level_by_coarsening = true)
+       int ngrow = 4, bool build_coarse_level_by_coarsening = true,
+       int num_coarsen_opt = -1)
 {
     BL_PROFILE("EB2::Initialize()");
     IndexSpace::push(new IndexSpaceImp<G>(gshop, geom,
                                           required_coarsening_level,
                                           max_coarsening_level,
-                                          ngrow, build_coarse_level_by_coarsening));
+                                          ngrow, build_coarse_level_by_coarsening,num_coarsen_opt));
 }
 
 void Build (const Geometry& geom,
             int required_coarsening_level,
             int max_coarsening_level,
             int ngrow = 4,
-            bool build_coarse_level_by_coarsening = true);
+            bool build_coarse_level_by_coarsening = true,
+            int num_coarsen_opt=-1);
 
 int maxCoarseningLevel (const Geometry& geom);
 int maxCoarseningLevel (IndexSpace const* ebis, const Geometry& geom);

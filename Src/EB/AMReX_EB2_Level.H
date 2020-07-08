@@ -94,14 +94,14 @@ class GShopLevel
     : public Level
 {
 public:
-    GShopLevel (IndexSpace const* is, G const& gshop, const Geometry& geom, int max_grid_size, int ngrow, int max_crse_opt);
+    GShopLevel (IndexSpace const* is, G const& gshop, const Geometry& geom, int max_grid_size, int ngrow, int num_crse_opt);
     GShopLevel (IndexSpace const* is, int ilev, int max_grid_size, int ngrow,
                 const Geometry& geom, GShopLevel<G>& fineLevel);
 };
 
 template <typename G>
 GShopLevel<G>::GShopLevel (IndexSpace const* is, G const& gshop, const Geometry& geom,
-                           int max_grid_size, int ngrow, int max_crse_opt)
+                           int max_grid_size, int ngrow, int num_crse_opt)
     : Level(is, geom)
 {
     if (std::is_same<typename G::FunctionType, AllRegularIF>::value) {
@@ -121,62 +121,59 @@ GShopLevel<G>::GShopLevel (IndexSpace const* is, G const& gshop, const Geometry&
     // make sure ngrow is multiple of 16
     m_ngrow = IntVect{static_cast<int>(std::ceil(ngrow/16.)) * 16};
 
-    if (max_crse_opt > 0) {
-
+    if (num_crse_opt > 0) {
         int num_crse = 0;
-        Box cdomain = geom.Domain();
-        for (bool ok=true; ok; ++num_crse) {
-            Box tcdomain = coarsen(cdomain,2);
-            ok = refine(tcdomain,2) == cdomain;
-            cdomain = tcdomain;
+        {
+            Box tdomain = geom.Domain();
+            for (bool ok=true; ok; ++num_crse) {
+                Box tcdomain = coarsen(tdomain,2);
+                ok = refine(tcdomain,2) == tdomain;
+                tdomain = tcdomain;
+            }
         }
 
-        num_crse = amrex::min(num_crse-1, max_crse_opt);
+        num_crse = num_crse_opt > 0 ? amrex::min(num_crse_opt,num_crse): num_crse;
 
-        int ratio = std::pow(2,num_crse);
-        Geometry tgeom(geom);
-        Box tdomain = coarsen(geom.Domain(),ratio);
-        BoxArray tba(grow(tdomain,m_ngrow / ratio));
-        tba.maxSize(16);
+        BoxArray tba;
+        if (num_crse > 0) {
+            int ratio = std::pow(2,num_crse);
+            Geometry tgeom(geom);
+            Box tdomain = coarsen(geom.Domain(),ratio);
+            tba = BoxArray(grow(tdomain,m_ngrow / ratio));
 
-        for (int i=0; tdomain != geom.Domain(); ++i) {
+            for (int i=0; tdomain != geom.Domain(); ++i) {
 
-            tgeom.define(tdomain);
+                tgeom.define(tdomain);
 
-            Vector<int> is_cut_or_covered(tba.size(),0);
+                tba.maxSize(16);
 
-            for (MFIter mfi(tba, DistributionMapping(tba)); mfi.isValid(); ++mfi) {
+                Vector<int> is_cut(tba.size(),0);
 
-                const Box& vbx = mfi.validbox();
-                const Box& gbx = amrex::surroundingNodes(amrex::grow(vbx,1));
-        
-                int box_type = gshop.getBoxType(gbx, tgeom, RunOn::Gpu);
-        
-                if (box_type == gshop.mixedcells) {
-                    is_cut_or_covered[mfi.index()] = 1;
-                } else if (box_type == gshop.allcovered) {
-                    is_cut_or_covered[mfi.index()] = 2;
-                }
-            }
-            ParallelDescriptor::ReduceIntSum(&(is_cut_or_covered[0]),is_cut_or_covered.size());
+                for (MFIter mfi(tba, DistributionMapping(tba)); mfi.isValid(); ++mfi)
+                {
+                    const Box& vbx = mfi.validbox();
+                    const Box& gbx = amrex::surroundingNodes(amrex::grow(vbx,1));
 
-            BoxList tbl;
-            for (int i=0; i<is_cut_or_covered.size(); ++i) {
-                if (is_cut_or_covered[i] > 0) {
-                    BoxArray cba = BoxArray(refine(tba[i],2));
-                    if (is_cut_or_covered[i] == 1) { // no gain by chopping covered boxes
-                        cba.maxSize(16);
+                    int box_type = gshop.getBoxType(gbx, tgeom, RunOn::Gpu);
+
+                    if (box_type == gshop.mixedcells  ||  box_type == gshop.allcovered) {
+                        is_cut[mfi.index()] = 1;
                     }
-                    tbl.join(BoxList(cba));
                 }
+                ParallelDescriptor::ReduceIntSum(&(is_cut[0]),is_cut.size());
+
+                BoxList tbl;
+                for (int i=0; i<is_cut.size(); ++i) {
+                    if (is_cut[i] > 0) tbl.push_back(refine(tba[i],2));
+                }
+                tba = BoxArray(tbl);
+                tdomain = refine(tdomain, 2);
             }
-            tba = BoxArray(tbl);
-            tdomain = refine(tdomain, 2);
         }
 
         m_grids = tba;
-    }
-    else {
+
+    } else {
 
         Box domain_grown = geom.Domain();
         for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {

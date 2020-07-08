@@ -3,7 +3,8 @@ template <typename G>
 IndexSpaceImp<G>::IndexSpaceImp (const G& gshop, const Geometry& geom,
                                  int required_coarsening_level,
                                  int max_coarsening_level,
-                                 int ngrow, bool build_coarse_level_by_coarsening)
+                                 int ngrow, bool build_coarse_level_by_coarsening,
+                                 int num_coarsen_opt)
 {
     // build finest level (i.e., level 0) first
     AMREX_ALWAYS_ASSERT(required_coarsening_level >= 0 && required_coarsening_level <= 30);
@@ -19,7 +20,7 @@ IndexSpaceImp<G>::IndexSpaceImp (const G& gshop, const Geometry& geom,
     m_domain.push_back(geom.Domain());
     m_ngrow.push_back(ngrow_finest);
     m_gslevel.reserve(max_coarsening_level+1);
-    m_gslevel.emplace_back(this, gshop, geom, EB2::max_grid_size, ngrow_finest, required_coarsening_level);
+    m_gslevel.emplace_back(this, gshop, geom, EB2::max_grid_size, ngrow_finest, num_coarsen_opt);
 
     for (int ilev = 1; ilev <= max_coarsening_level; ++ilev)
     {
@@ -43,7 +44,7 @@ IndexSpaceImp<G>::IndexSpaceImp (const G& gshop, const Geometry& geom,
                 if (build_coarse_level_by_coarsening) {
                     amrex::Abort("Failed to build required coarse EB level "+std::to_string(ilev));
                 } else {
-                    m_gslevel.emplace_back(this, gshop, cgeom, EB2::max_grid_size, ng, required_coarsening_level);
+                    m_gslevel.emplace_back(this, gshop, cgeom, EB2::max_grid_size, ng, num_coarsen_opt);
                 }
             } else {
                 break;
