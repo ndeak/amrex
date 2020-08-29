@@ -452,7 +452,7 @@ MLABecCecLaplacian::Fapply (int amrlev, int mglev, MultiFab& out, const MultiFab
 
     const Real ascalar = m_a_scalar;
     const Real bscalar = m_b_scalar;
-    const Real bscalar = m_c_scalar;
+    const Real cscalar = m_c_scalar;
 
     const int ncomp = getNComp();
 
@@ -468,6 +468,9 @@ MLABecCecLaplacian::Fapply (int amrlev, int mglev, MultiFab& out, const MultiFab
         AMREX_D_TERM(const auto& bxfab = bxcoef.array(mfi);,
                      const auto& byfab = bycoef.array(mfi);,
                      const auto& bzfab = bzcoef.array(mfi););
+        AMREX_D_TERM(const auto& cxfab = cxcoef.array(mfi);,
+                     const auto& cyfab = cycoef.array(mfi);,
+                     const auto& czfab = czcoef.array(mfi););
         if (m_overset_mask[amrlev][mglev]) {
             const auto& osm = m_overset_mask[amrlev][mglev]->array(mfi);
             AMREX_LAUNCH_HOST_DEVICE_LAMBDA ( bx, tbx,
