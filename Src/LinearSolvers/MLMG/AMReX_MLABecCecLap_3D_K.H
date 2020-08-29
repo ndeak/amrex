@@ -292,7 +292,7 @@ void mlabecceclap_flux_xface (Box const& box, Array4<Real> const& fx, Array4<Rea
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void mlabecceclap_flux_y (Box const& box, Array4<Real> const& fy, Array4<Real const> const& sol,
                           Array4<Real const> const& by, Array4<Real const> const& cy,
-                          Real fac, Real fac, int ncomp) noexcept
+                          Real fac, Real facc, int ncomp) noexcept
 {
     const auto lo = amrex::lbound(box);
     const auto hi = amrex::ubound(box);

@@ -183,7 +183,7 @@ void mlabecceclap_normalize (Box const& box, Array4<Real> const& x,
     AMREX_PRAGMA_SIMD
     for (int i = lo.x; i <= hi.x; ++i) {
         x(i,0,0,n) /=   alpha*a(i,0,0) 
-                      + dhx*(bX(i,0,0)+bX(i+1,0,0))
+                      + dhxsq*(bX(i,0,0)+bX(i+1,0,0))
                       - dhx*getCellUpwindCoeff(cX(i,0,0,n),cX(i+1,0,0,n));
     }
     }
@@ -388,17 +388,16 @@ void abeccec_chkdiag (Box const& box, Real alpha,
         AMREX_PRAGMA_SIMD
         for (int i = lo.x; i <= hi.x; ++i) {
             // Complete diag
-            Real diag = alpha*a(i,j,0)
-                      - dhxsq*( - bX(i,j,0,n) - bX(i+1,j,0,n) )
-                      - dhx*getCellUpwindCoeff(cX(i,j,0,n),cX(i+1,j,0,n));
+            Real diag = alpha*a(i,0,0)
+                      - dhxsq*( - bX(i,0,0,n) - bX(i+1,0,0,n) )
+                      - dhx*getCellUpwindCoeff(cX(i,0,0,n),cX(i+1,0,0,n));
 
             // Offdiag 
-            Real offdiagdiff =-dhxsq* (bX(i  ,j  ,0,n) + bX(i+1,j  ,0,n));
+            Real offdiagdiff =-dhxsq* (bX(i  ,0  ,0,n) + bX(i+1,0  ,0,n));
 
-            Real offdiagadv =-dhx  * (  getLeftCellUpwindCoeff(cX(i  ,j  ,0,n),cX(i+1,j  ,0,n)) 
-                                      + getRightCellUpwindCoeff(cX(i  ,j  ,0,n),cX(i+1,j  ,0,n)));
+            Real offdiagadv =-dhx  * (  getLeftCellUpwindCoeff(cX(i  ,0  ,0,n),cX(i+1,0  ,0,n)) 
+                                      + getRightCellUpwindCoeff(cX(i  ,0  ,0,n),cX(i+1,0  ,0,n)));
 
-            //amrex::Print() << i << " " << j << " " << fabs(diag)-fabs(offdiagdiff+offdiagadv) << "\n";
             if ( fabs(offdiagdiff+offdiagadv) > fabs(diag) ) {
             //if ( i == 1 ) {
                amrex::Print() << " Abort LinOp not diagonal dominant at: " << i << "\n";
