@@ -750,7 +750,6 @@ MLABecCecLaplacian::checkDiagonalDominance (int amrlev, int mglev)
     for (MFIter mfi(acoef,mfi_info); mfi.isValid(); ++mfi)
     {
         const Box& tbx = mfi.tilebox();
-        const Box& vbx = mfi.validbox();
 
         const auto& afab    = acoef.array(mfi);
         AMREX_D_TERM(const auto& bxfab = bxcoef.array(mfi);,
@@ -767,7 +766,7 @@ MLABecCecLaplacian::checkDiagonalDominance (int amrlev, int mglev)
                             AMREX_D_DECL(dhx, dhy, dhz),
                             AMREX_D_DECL(bxfab, byfab, bzfab),
                             AMREX_D_DECL(cxfab, cyfab, czfab),
-                            vbx, nc);
+                            nc);
         });
     }
 }
