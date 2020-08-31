@@ -22,11 +22,11 @@ inline Real getFaceStateUpwind ( Real const &edgeVel, Real const &leftState, Rea
 inline Real getCellUpwindCoeff ( Real const &leftedgeVel, Real const &rightedgeVel ) {
 
    Real coeff = 0.0;
-//   if ( leftedgeVel*rightedgeVel < 0.0 ) { // Case where velocity change sign, use centered + art. visc
-//      Real maxvel = std::max(fabs(leftedgeVel),fabs(rightedgeVel));
-//         coeff += 0.5*(rightedgeVel-leftedgeVel); // centered part
-//         coeff += maxvel; // art. visc.
-//   } else { // same sign velocity, use upwind
+   if ( leftedgeVel*rightedgeVel < 0.0 ) { // Case where velocity change sign, use centered + art. visc
+      Real maxvel = std::max(fabs(leftedgeVel),fabs(rightedgeVel));
+         coeff += 0.5*(rightedgeVel-leftedgeVel); // centered part
+         coeff += maxvel; // art. visc.
+   } else { // same sign velocity, use upwind
       if ( leftedgeVel < -eps ) 
          coeff -= leftedgeVel;
       else if ( fabs(leftedgeVel) <= eps )
@@ -35,7 +35,7 @@ inline Real getCellUpwindCoeff ( Real const &leftedgeVel, Real const &rightedgeV
          coeff += rightedgeVel;
       else if ( fabs(rightedgeVel) <= eps )
          coeff += 0.5*rightedgeVel;
-//  }
+   }
 
    return coeff;
 }
@@ -43,32 +43,32 @@ inline Real getCellUpwindCoeff ( Real const &leftedgeVel, Real const &rightedgeV
 inline Real getLeftCellUpwindCoeff ( Real const &leftedgeVel, Real const &rightedgeVel ) {
 
    Real coeff = 0.0;
-//   if ( leftedgeVel*rightedgeVel < 0.0 ) {
-//      Real maxvel = std::max(fabs(leftedgeVel),fabs(rightedgeVel));
-//      coeff -= 0.5*leftedgeVel;
-//      coeff -= 0.5*maxvel;
-//   } else {
+   if ( leftedgeVel*rightedgeVel < 0.0 ) {
+      Real maxvel = std::max(fabs(leftedgeVel),fabs(rightedgeVel));
+      coeff -= 0.5*leftedgeVel;
+      coeff -= 0.5*maxvel;
+   } else {
       if ( leftedgeVel > eps ) 
          coeff -= leftedgeVel;
       else if ( fabs(leftedgeVel) < eps )
          coeff -= 0.5*leftedgeVel;
-//   }
+   }
    return coeff;
 }
 
 inline Real getRightCellUpwindCoeff ( Real const &leftedgeVel, Real const &rightedgeVel ) {
 
    Real coeff = 0.0;
-//   if ( leftedgeVel*rightedgeVel < 0.0 ) {
-//      Real maxvel = std::max(fabs(leftedgeVel),fabs(rightedgeVel));
-//      coeff += 0.5*rightedgeVel;
-//      coeff += 0.5*maxvel;
-//   } else {
+   if ( leftedgeVel*rightedgeVel < 0.0 ) {
+      Real maxvel = std::max(fabs(leftedgeVel),fabs(rightedgeVel));
+      coeff += 0.5*rightedgeVel;
+      coeff += 0.5*maxvel;
+   } else {
       if ( rightedgeVel < -eps )
          coeff += rightedgeVel;
       else if ( fabs(rightedgeVel) < eps )
          coeff += 0.5*rightedgeVel;
-//   }
+   }
    return coeff;
 }
 
@@ -76,11 +76,11 @@ inline Real getCellUpwindCoeff ( Real const &leftedgeVel, Real const &rightedgeV
                                  Real const &relaxleft  , Real const &relaxright ) {
 
    Real coeff = 0.0;
-//   if ( leftedgeVel*relaxleft*rightedgeVel*relaxright < 0.0 ) { // Case where velocity change sign, use centered + art. visc
-//      Real maxvel = std::max(fabs(leftedgeVel*relaxleft),fabs(rightedgeVel*relaxright));
-//         coeff += 0.5*(rightedgeVel*relaxright-leftedgeVel*relaxleft); // centered part
-//         coeff += maxvel; // art. visc.
-//   } else { // same sign velocity, use upwind
+   if ( leftedgeVel*relaxleft*rightedgeVel*relaxright < 0.0 ) { // Case where velocity change sign, use centered + art. visc
+      Real maxvel = std::max(fabs(leftedgeVel*relaxleft),fabs(rightedgeVel*relaxright));
+         coeff += 0.5*(rightedgeVel*relaxright-leftedgeVel*relaxleft); // centered part
+         coeff += maxvel; // art. visc.
+   } else { // same sign velocity, use upwind
       if ( leftedgeVel < -eps ) 
          coeff -= leftedgeVel*relaxleft;
       else if ( fabs(leftedgeVel) < eps )
@@ -89,7 +89,7 @@ inline Real getCellUpwindCoeff ( Real const &leftedgeVel, Real const &rightedgeV
          coeff += rightedgeVel*relaxright;
       else if ( fabs(rightedgeVel) < eps )
          coeff += 0.5*rightedgeVel*relaxright;
-//   }
+   }
 
    return coeff;
 }
@@ -658,8 +658,6 @@ void abeccec_chkdiag (Box const& box, Real alpha,
 {
     const auto lo = amrex::lbound(box);
     const auto hi = amrex::ubound(box);
-    const auto vlo = amrex::lbound(vbox);
-    const auto vhi = amrex::ubound(vbox);
 
     for (int n = 0; n < nc; ++n) {
         for         (int k = lo.z; k <= hi.z; ++k) {
