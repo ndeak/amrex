@@ -654,7 +654,7 @@ void abeccec_chkdiag (Box const& box, Real alpha,
                       Array4<Real const> const& cX,
                       Array4<Real const> const& cY,
                       Array4<Real const> const& cZ,
-                      Box const& vbox, int nc) noexcept
+                      int nc) noexcept
 {
     const auto lo = amrex::lbound(box);
     const auto hi = amrex::ubound(box);
