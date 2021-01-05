@@ -114,6 +114,17 @@ HypreABecLap3::getSolution (MultiFab& soln)
                                          (*flags)[mfi]);
             }
 #endif
+
+            if (m_overset_mask) {
+                Array4<int const> const& omsk_arr = m_overset_mask->const_array(mfi);
+                Array4<Real> const& soln_arr = soln.array(mfi);
+                AMREX_HOST_DEVICE_PARALLEL_FOR_3D(bx, i, j, k,
+                {
+                    if (omsk_arr(i,j,k) == 0) {
+                        soln_arr(i,j,k) = 0._rt;
+                    }
+                });
+            }
         }
     }
 }
@@ -352,6 +363,15 @@ HypreABecLap3::prepareSolver ()
             }
 #endif
 
+            // For singular matrices set reference solution on one row
+            if (hypre_ij->adjustSingularMatrix()
+                && is_matrix_singular
+                && (rows[0] == 0)) {
+                const int num_cols = ncols[0];
+                for (int ic = 0; ic < num_cols; ++ic)
+                    mat[ic] = (cols[ic] == rows[0]) ? mat[ic] : 0.0;
+            }
+
             HYPRE_IJMatrixSetValues(A,nrows,ncols,rows,cols,mat);
         }
     }
@@ -407,6 +427,12 @@ HypreABecLap3::loadVectors (MultiFab& soln, const MultiFab& rhs)
                 bfab = &rhsfab;
             }
 
+            if (hypre_ij->adjustSingularMatrix() && is_matrix_singular) {
+                const auto* rows = cell_id_vec[mfi].data();
+                if (rows[0] == 0) {
+                    bfab->dataPtr()[0] = 0.0;
+                }
+            }
             HYPRE_IJVectorSetValues(b, nrows, cell_id_vec[mfi].data(), bfab->dataPtr());
         }
     }

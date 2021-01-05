@@ -1,5 +1,6 @@
 #ifndef AMREX_ML_MG_H_
 #define AMREX_ML_MG_H_
+#include <AMReX_Config.H>
 
 #include <AMReX_MLLinOp.H>
 #include <AMReX_iMultiFab.H>
@@ -188,8 +189,8 @@ private:
     CFStrategy cf_strategy     = CFStrategy::none;
     int  bottom_verbose        = 0;
     int  bottom_maxiter        = 200;
-    Real bottom_reltol         = 1.e-4;
-    Real bottom_abstol         = -1.0;
+    Real bottom_reltol         = Real(1.e-4);
+    Real bottom_abstol         = Real(-1.0);
 
     int always_use_bnorm = 0;
 
@@ -212,14 +213,10 @@ private:
 
     //! Hypre
 #ifdef AMREX_USE_HYPRE
-#ifdef AMREX_USE_EB
-    Hypre::Interface hypre_interface = Hypre::Interface::ij;
-#else
-
     // Hypre::Interface hypre_interface = Hypre::Interface::structed;
-    Hypre::Interface hypre_interface = Hypre::Interface::semi_structed;
-    // Hypre::Interface hypre_interface = Hypre::Interface::ij;
-#endif
+    // Hypre::Interface hypre_interface = Hypre::Interface::semi_structed;
+    Hypre::Interface hypre_interface = Hypre::Interface::ij;
+
     std::unique_ptr<Hypre> hypre_solver;
     std::unique_ptr<MLMGBndry> hypre_bndry;
     std::unique_ptr<HypreNodeLap> hypre_node_solver;

@@ -1,5 +1,6 @@
 #ifndef AMREX_PARTICLEIO_H
 #define AMREX_PARTICLEIO_H
+#include <AMReX_Config.H>
 
 #include <AMReX_WriteBinaryParticleData.H>
 
@@ -704,7 +705,7 @@ ParticleContainer<NStructReal, NStructInt, NArrayReal, NArrayInt>
     AMREX_ASSERT(!dir.empty());
     AMREX_ASSERT(!file.empty());
 
-    const Real strttime = amrex::second();
+    const Real strttime = static_cast<Real>(amrex::second());
 
     int DATA_Digits_Read(5);
     ParmParse pp("particles");
@@ -738,7 +739,7 @@ ParticleContainer<NStructReal, NStructInt, NArrayReal, NArrayInt>
     if (version.find("Version_One_Dot_Zero") != std::string::npos) {
         how = "double";
     }
-    else if (version.find("Version_One_Dot_One")  != std::string::npos or
+    else if (version.find("Version_One_Dot_One")  != std::string::npos ||
              version.find("Version_Two_Dot_Zero") != std::string::npos) {
         if (version.find("_single") != std::string::npos) {
             how = "single";
@@ -821,7 +822,7 @@ ParticleContainer<NStructReal, NStructInt, NArrayReal, NArrayInt>
             phdr_name = amrex::Concatenate(phdr_name + "/Level_", lev, 1);
             phdr_name += "/Particle_H";
 
-            if (not amrex::FileExists(phdr_name)) continue;
+            if (! amrex::FileExists(phdr_name)) continue;
 
             Vector<char> phdr_chars;
             ParallelDescriptor::ReadAndBcastFile(phdr_name, phdr_chars);
@@ -835,7 +836,7 @@ ParticleContainer<NStructReal, NStructInt, NArrayReal, NArrayInt>
             }
 
             particle_box_arrays[lev].readFrom(phdr_file);
-            if (not particle_box_arrays[lev].CellEqual(ParticleBoxArray(lev))) dual_grid = true;
+            if (! particle_box_arrays[lev].CellEqual(ParticleBoxArray(lev))) dual_grid = true;
         }
     } else // if no particle box array information exists in the file, we assume a single grid restart
     {
@@ -955,7 +956,7 @@ ParticleContainer<NStructReal, NStructInt, NArrayReal, NArrayInt>
     AMREX_ASSERT(OK());
 
     if (m_verbose > 1) {
-        Real stoptime = amrex::second() - strttime;
+        Real stoptime = static_cast<Real>(amrex::second() - strttime);
         ParallelDescriptor::ReduceRealMax(stoptime, ParallelDescriptor::IOProcessorNumber());
         amrex::Print() << "ParticleContainer::Restart() time: " << stoptime << '\n';
     }
@@ -1019,15 +1020,15 @@ ParticleContainer<NStructReal, NStructInt, NArrayReal, NArrayInt>
 
         AMREX_ASSERT(p.id() > 0);
 
-        AMREX_D_TERM(p.pos(0) = rptr[0];,
-                     p.pos(1) = rptr[1];,
-                     p.pos(2) = rptr[2];);
+        AMREX_D_TERM(p.pos(0) = ParticleReal(rptr[0]);,
+                     p.pos(1) = ParticleReal(rptr[1]);,
+                     p.pos(2) = ParticleReal(rptr[2]););
 
         rptr += AMREX_SPACEDIM;
 
         for (int j = 0; j < NStructReal; j++)
         {
-            p.rdata(j) = *rptr;
+            p.rdata(j) = ParticleReal(*rptr);
             ++rptr;
         }
 
@@ -1043,7 +1044,7 @@ ParticleContainer<NStructReal, NStructInt, NArrayReal, NArrayInt>
 
 	// add the real...
 	for (int icomp = 0; icomp < NumRealComps(); icomp++) {
-            host_real_attribs[lev][ind][icomp].push_back(*rptr);
+            host_real_attribs[lev][ind][icomp].push_back(ParticleReal(*rptr));
             ++rptr;
 	}
 
