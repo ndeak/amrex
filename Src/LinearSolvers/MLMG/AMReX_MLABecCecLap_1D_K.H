@@ -408,5 +408,27 @@ void abeccec_chkdiag (Box const& box, Real alpha,
     }
 }
 
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+void abeccec_getdiag (Box const& box, Real alpha,
+                      Array4<Real const> const& a,
+                      Real dhxsq, Real dhx,
+                      Array4<Real const> const& bX,
+                      Array4<Real const> const& cX,
+                      int nc,
+                      Array4<Real> const& diag) noexcept
+{
+    const auto lo = amrex::lbound(box);
+    const auto hi = amrex::ubound(box);
+
+    for (int n = 0; n < nc; ++n) {
+        AMREX_PRAGMA_SIMD
+        for (int i = lo.x; i <= hi.x; ++i) {
+            diag(i,0,0) = alpha*a(i,0,0)
+                        - dhxsq*( - bX(i,0,0,n) - bX(i+1,0,0,n) )
+                        - dhx*getCellUpwindCoeff(cX(i,0,0,n),cX(i+1,0,0,n));
+        }
+    }
+}
+
 }
 #endif

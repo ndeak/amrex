@@ -697,5 +697,41 @@ void abeccec_chkdiag (Box const& box, Real alpha,
         }
     }
 }
+
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+void abeccec_chkdiag (Box const& box, Real alpha,
+                      Array4<Real const> const& a,
+                      Real dhxsq, Real dhysq, Real dhzsq,
+                      Real dhx, Real dhy, Real dhz, 
+                      Array4<Real const> const& bX,
+                      Array4<Real const> const& bY,
+                      Array4<Real const> const& bZ,
+                      Array4<Real const> const& cX,
+                      Array4<Real const> const& cY,
+                      Array4<Real const> const& cZ,
+                      int nc,
+                      Array4<Real> const& diag) noexcept
+{
+    const auto lo = amrex::lbound(box);
+    const auto hi = amrex::ubound(box);
+
+    for (int n = 0; n < nc; ++n) {
+        for         (int k = lo.z; k <= hi.z; ++k) {
+            for     (int j = lo.y; j <= hi.y; ++j) {
+                AMREX_PRAGMA_SIMD
+                for (int i = lo.x; i <= hi.x; ++i) {
+                    diag(i,j,k) = alpha*a(i,j,k)
+                                - dhxsq*( - bX(i,j,k,n) - bX(i+1,j,k,n) )
+                                - dhysq*( - bY(i,j,k,n) - bY(i,j+1,k,n) )
+                                - dhzsq*( - bZ(i,j,k,n) - bZ(i,j,k+1,n) )
+                                - dhx*getCellUpwindCoeff(cX(i,j,k,n),cX(i+1,j,k,n))
+                                - dhy*getCellUpwindCoeff(cY(i,j,k,n),cY(i,j+1,k,n))
+                                - dhz*getCellUpwindCoeff(cZ(i,j,k,n),cZ(i,j,k+1,n));
+                }
+            }
+        }
+    }
+}
+
 }
 #endif

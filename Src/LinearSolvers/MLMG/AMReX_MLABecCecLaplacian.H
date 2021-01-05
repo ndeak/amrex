@@ -56,6 +56,8 @@ public:
     void setCCoeffs (int amrlev, const Array<MultiFab const*,AMREX_SPACEDIM>& eta);
 
     void checkDiagonalDominance(int amrlev, int mglev);
+    void getDiagonal(MultiFab& diag);
+    void getNetFaceCoeff(MultiFab& coeff_d, int dir);
 
     virtual bool needsUpdate () const override {
         return (m_needs_update || MLCellABecCecLap::needsUpdate());
