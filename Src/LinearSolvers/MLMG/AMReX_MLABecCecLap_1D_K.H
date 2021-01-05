@@ -429,6 +429,5 @@ void abeccec_getdiag (Box const& box, Real alpha,
         }
     }
 }
-
 }
 #endif
