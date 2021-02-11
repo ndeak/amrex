@@ -699,7 +699,7 @@ void abeccec_chkdiag (Box const& box, Real alpha,
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_INLINE
-void abeccec_chkdiag (Box const& box, Real alpha,
+void abeccec_getdiag (Box const& box, Real alpha,
                       Array4<Real const> const& a,
                       Real dhxsq, Real dhysq, Real dhzsq,
                       Real dhx, Real dhy, Real dhz, 
@@ -731,6 +731,60 @@ void abeccec_chkdiag (Box const& box, Real alpha,
             }
         }
     }
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+void abeccec_getnetfcoeff (Box const& box, Real alpha,
+                           Array4<Real const> const& a,
+                           Real dhxsq, Real dhysq, Real dhzsq,
+                           Real dhx, Real dhy, Real dhz,
+                           Array4<Real const> const& bX,
+                           Array4<Real const> const& bY,
+                           Array4<Real const> const& bZ,
+                           Array4<Real const> const& cX,
+                           Array4<Real const> const& cY,
+                           Array4<Real const> const& cZ,
+                           int nc, int dir,
+                           Array4<Real> const& coeffd) noexcept
+{
+    auto lo = amrex::lbound(box);
+    auto hi = amrex::ubound(box);
+    // Gettting face coefficient
+    if ( dir == 0 ) {
+       for (int n = 0; n < nc; ++n) {
+           for     (int k = lo.z; k <= hi.z; ++k) {
+               for (int j = lo.y; j <= hi.y; ++j) {
+                   AMREX_PRAGMA_SIMD
+                   for (int i = lo.x; i <= hi.x+1; ++i) {
+                       coeffd(i,j,k) = - dhxsq * bX(i,j,k,n) - dhx * cX(i,j,k,n);
+                   }
+               }
+           }
+       }
+    } else if ( dir == 1 ) {
+       for (int n = 0; n < nc; ++n) {
+           for     (int k = lo.z; k <= hi.z; ++k) {
+               for (int j = lo.y; j <= hi.y+1; ++j) {
+                   AMREX_PRAGMA_SIMD
+                   for (int i = lo.x; i <= hi.x; ++i) {
+                       coeffd(i,j,k) = - dhysq * bY(i,j,k,n) - dhy * cY(i,j,k,n);
+                   }
+               }
+           }
+       }
+    } else if ( dir == 2 ) {
+       for (int n = 0; n < nc; ++n) {
+           for     (int k = lo.z; k <= hi.z+1; ++k) {
+               for (int j = lo.y; j <= hi.y; ++j) {
+                   AMREX_PRAGMA_SIMD
+                   for (int i = lo.x; i <= hi.x; ++i) {
+                       coeffd(i,j,k) = - dhzsq * bZ(i,j,k,n) - dhz * cZ(i,j,k,n);
+                   }
+               }
+           }
+       }
+    }
+
 }
 
 }
