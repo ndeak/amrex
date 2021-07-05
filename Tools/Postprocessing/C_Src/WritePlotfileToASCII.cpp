@@ -15,13 +15,15 @@ PrintUsage (const char* progName)
     Print() << std::endl
             << "This utility reads in a single-level plotfile, copies it to " << std::endl
             << "a MultiFab with a single box, then writes out all the data in" << std::endl
-            << "'i j k comp <value>' format to the screen" << std::endl
+            << "'i j k comp <value>' format to the screen, for each component one by one." << std::endl
+            << "The optional flag [comp_in_line = 1] will plot data " << std::endl
+            << "with the format (i,j,k) followed by all components in a row.  " << std::endl
             << "The user can modify this cpp file to write out on certain components," << std::endl
             << "coordinates, row/column formatting, etc." << std::endl << std::endl;
-    
+
     Print() << "Usage:" << '\n';
-    Print() << progName << " infile=inputFileName" << '\n' << '\n';
-        
+    Print() << progName << " infile=inputFileName [comp_in_line = 1]" << '\n' << '\n';
+
     exit(1);
 }
 
@@ -45,6 +47,9 @@ main (int   argc,
     pp.query("infile", iFile);
     if (iFile.empty())
         amrex::Abort("You must specify `infile'");
+
+    int comp_in_line = 0;
+    pp.query("comp_in_line", comp_in_line);
 
     // single-level for now
     // AMR comes later, where we iterate over each level in isolation
@@ -92,10 +97,10 @@ main (int   argc,
 
     // storage for the input coarse and fine MultiFabs
     MultiFab mf;
-    
+
     // read in plotfiles, 'coarse' and 'fine' to MultiFabs
     // note: fine could be the same resolution as coarse
-    VisMF::Read(mf, iFile);    
+    VisMF::Read(mf, iFile);
 
     ncomp = mf.nComp();
     Print() << "ncomp = " << ncomp << std::endl;
@@ -124,23 +129,26 @@ main (int   argc,
     mf_onegrid.ParallelCopy(mf,0,0,ncomp,0,0);
 
     for ( MFIter mfi(mf_onegrid,false); mfi.isValid(); ++mfi ) {
-        
+
         const Box& bx = mfi.validbox();
         const auto lo = amrex::lbound(bx);
         const auto hi = amrex::ubound(bx);
 
         const Array4<Real>& mfdata = mf_onegrid.array(mfi);
 
-       for (auto n=0; n<ncomp; ++n) {
-       for (auto k = lo.z; k <= hi.z; ++k) {
-       for (auto j = lo.y; j <= hi.y; ++j) {
-       for (auto i = lo.x; i <= hi.x; ++i) {
-            Print() << i << " " << j << " " << k << " " << n << " " << mfdata(i,j,k,n) << std::endl;
-       }
-       }
-       }
-       }
-            
+        if (comp_in_line == 1){
+          std::cout << mf_onegrid[mfi];
+        }else{
+          for (auto n=0; n<ncomp; ++n) {
+            for (auto k = lo.z; k <= hi.z; ++k) {
+              for (auto j = lo.y; j <= hi.y; ++j) {
+                for (auto i = lo.x; i <= hi.x; ++i) {
+                  std::cout << i << " " << j << " " << k << " " << n << " " << mfdata(i,j,k,n) << "\n";
+                }
+              }
+            }
+          }
+        }
     } // end MFIter
-    
+
 }

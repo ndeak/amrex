@@ -260,6 +260,8 @@ sumNeighborsMPI (std::map<int, Vector<char> >& not_ours,
             }
         }
     }
+#else
+    amrex::ignore_unused(not_ours, real_start_comp, real_num_comp, int_start_comp, int_num_comp);
 #endif
 }
 
@@ -284,7 +286,7 @@ NeighborParticleContainer<NStructReal, NStructInt, NArrayReal, NArrayInt>
             for (int j = 0; j < num_threads; ++j) {
                 auto& tags = buffer_tag_cache[lev][src_index][j];
                 int num_tags = tags.size();
-#ifdef _OPENMP
+#ifdef AMREX_USE_OMP
 #pragma omp parallel for
 #endif
                 for (int i = 0; i < num_tags; ++i) {
@@ -374,7 +376,7 @@ NeighborParticleContainer<NStructReal, NStructInt, NArrayReal, NArrayInt>
             }
         }
 
-#ifdef _OPENMP
+#ifdef AMREX_USE_OMP
 #pragma omp parallel
 #endif
         for (MFIter mfi = this->MakeMFIter(lev); mfi.isValid(); ++mfi) {
@@ -579,7 +581,7 @@ fillNeighborsMPI (bool reuse_rcv_counts) {
                 if ( enableInverse() )
                 {
                     AMREX_ASSERT(neighbors[lev][dst_index].size() ==
-                                 inverse_tags[lev][dst_index].size());
+                                 size_t(inverse_tags[lev][dst_index].size()));
                     inverse_tags[lev][dst_index].resize(new_size);
                 }
                 neighbors[lev][dst_index].resize(new_size);
@@ -639,6 +641,8 @@ fillNeighborsMPI (bool reuse_rcv_counts) {
             }
         }
     }
+#else
+    amrex::ignore_unused(reuse_rcv_counts);
 #endif
 }
 

@@ -2,19 +2,9 @@
 #define BL_MFITER_H_
 #include <AMReX_Config.H>
 
-#include <memory>
-
-#include <AMReX_Arena.H>
 #include <AMReX_FabArrayBase.H>
-#include <AMReX_IntVect.H>
-#include <AMReX_FArrayBox.H>
-#include <AMReX_RealBox.H>
 
-#include <AMReX_Gpu.H>
-
-#ifdef _OPENMP
-#include <omp.h>
-#endif
+#include <memory>
 
 namespace amrex {
 
@@ -79,7 +69,7 @@ public:
         //! NoTeamBarrier: This option is for Team only. If on, there is no barrier in MFIter dtor.
         NoTeamBarrier = 0x04,
         //! SkipInit: Used by MFGhostIter
-	SkipInit      = 0x08
+        SkipInit      = 0x08
     };
 
     /**
@@ -88,23 +78,23 @@ public:
     * The tile size in this case is defined by FabArrayBase::mfiter_tile_size
     */
     explicit MFIter (const FabArrayBase& fabarray,
-		     unsigned char       flags_=0);
+                     unsigned char       flags_=0);
 
     //! Enable tiling with the default tile size, which is defined by FabArrayBase::mfiter_tile_size
     MFIter (const FabArrayBase& fabarray,
-	    bool                do_tiling);
+            bool                do_tiling);
 
     //! Enable tiling with explicit tile size and flags (See type Flags for more information)
     MFIter (const FabArrayBase& fabarray,
-	    const IntVect&      tilesize,
-	    unsigned char       flags_=0);
+            const IntVect&      tilesize,
+            unsigned char       flags_=0);
 
     MFIter (const BoxArray& ba, const DistributionMapping& dm, unsigned char flags_=0);
 
     MFIter (const BoxArray& ba, const DistributionMapping& dm, bool do_tiling);
 
     MFIter (const BoxArray& ba, const DistributionMapping& dm,
-	    const IntVect& tilesize, unsigned char flags_=0);
+            const IntVect& tilesize, unsigned char flags_=0);
 
     MFIter (const FabArrayBase& fabarray, const MFItInfo& info);
 
@@ -192,7 +182,15 @@ protected:
     IndexType     typ;
 
     bool          dynamic;
-    bool          device_sync = true;
+
+    struct DeviceSync {
+        DeviceSync () = default;
+        DeviceSync (bool f) : flag(f) {}
+        DeviceSync (DeviceSync&& rhs) : flag(std::exchange(rhs.flag,false)) {}
+        explicit operator bool() const noexcept { return flag; }
+        bool flag = true;
+    };
+    DeviceSync device_sync;
 
     const Vector<int>* index_map;
     const Vector<int>* local_index_map;
@@ -204,9 +202,9 @@ protected:
     std::unique_ptr<Gpu::FuseSafeGuard> gpu_fsg;
 #endif
 
-    static int nextDynamicIndex;
-    static int depth;
-    static int allow_multiple_mfiters;
+    static AMREX_EXPORT int nextDynamicIndex;
+    static AMREX_EXPORT int depth;
+    static AMREX_EXPORT int allow_multiple_mfiters;
 
     void Initialize ();
 };
@@ -229,8 +227,6 @@ inline bool isMFIterSafe (const FabArrayBase& x, const FabArrayBase& y) {
     return x.DistributionMap() == y.DistributionMap()
         && BoxArray::SameRefs(x.boxArray(), y.boxArray());
 }
-
-inline Arena* The_MFIter_Arena () noexcept { return The_Device_Arena(); }
 
 }
 

@@ -20,14 +20,14 @@ public :
                      const Vector<DistributionMapping>& a_dmap,
                      const LPInfo& a_info = LPInfo(),
                      const Vector<FabFactory<FArrayBox> const*>& a_factory = {},
-                     Real  a_const_sigma = 0.0);
+                     Real  a_const_sigma = Real(0.0));
 #ifdef AMREX_USE_EB
     MLNodeLaplacian (const Vector<Geometry>& a_geom,
                      const Vector<BoxArray>& a_grids,
                      const Vector<DistributionMapping>& a_dmap,
                      const LPInfo& a_info,
                      const Vector<EBFArrayBoxFactory const*>& a_factory,
-                     Real a_const_sigma = 0.0);
+                     Real a_const_sigma = Real(0.0));
 #endif
     virtual ~MLNodeLaplacian ();
 
@@ -41,7 +41,7 @@ public :
                  const Vector<DistributionMapping>& a_dmap,
                  const LPInfo& a_info = LPInfo(),
                  const Vector<FabFactory<FArrayBox> const*>& a_factory = {},
-                 Real  a_const_sigma = 0.0);
+                 Real  a_const_sigma = Real(0.0));
 
 #ifdef AMREX_USE_EB
     void define (const Vector<Geometry>& a_geom,
@@ -49,7 +49,7 @@ public :
                  const Vector<DistributionMapping>& a_dmap,
                  const LPInfo& a_info,
                  const Vector<EBFArrayBoxFactory const*>& a_factory,
-                 Real a_const_sigma = 0.0);
+                 Real a_const_sigma = Real(0.0));
 #endif
 
     virtual std::string name () const override { return std::string("MLNodeLaplacian"); }
@@ -113,7 +113,7 @@ public :
     virtual void unimposeNeumannBC (int amrlev, MultiFab& rhs) const final override;
 
     virtual void compGrad (int /*amrlev*/, const Array<MultiFab*,AMREX_SPACEDIM>& /*grad*/,
-			   MultiFab& /*sol*/, Location /*loc*/) const final override {
+                           MultiFab& /*sol*/, Location /*loc*/) const final override {
         amrex::Abort("MLNodeLaplacian::compGrad: How did we get here?");
     }
     void compGrad (int amrlev, MultiFab& grad, MultiFab& sol) const;
@@ -132,23 +132,44 @@ public :
     void buildIntegral ();
 #endif
 
-#ifdef AMREX_USE_HYPRE
-    virtual void fillIJMatrix (MFIter const& mfi, Array4<HypreNodeLap::Int const> const& nid,
-                               Array4<int const> const& owner,
-                               Vector<HypreNodeLap::Int>& ncols, Vector<HypreNodeLap::Int>& rows,
-                               Vector<HypreNodeLap::Int>& cols, Vector<Real>& mat) const override;
+#if defined(AMREX_USE_HYPRE) && (AMREX_SPACEDIM > 1)
+    virtual void fillIJMatrix (MFIter const& mfi,
+                               Array4<HypreNodeLap::AtomicInt const> const& gid,
+                               Array4<int const> const& lid,
+                               HypreNodeLap::Int* const ncols,
+                               HypreNodeLap::Int* const cols,
+                               Real* const mat) const override;
+
+#ifdef AMREX_USE_GPU
+    void fillIJMatrix_gpu (MFIter const& mfi,
+                           Array4<HypreNodeLap::AtomicInt const> const& gid,
+                           Array4<int const> const& lid,
+                           HypreNodeLap::Int* const ncols,
+                           HypreNodeLap::Int* const cols,
+                           Real* const mat) const;
+#endif
+
+    void fillIJMatrix_cpu (MFIter const& mfi,
+                           Array4<HypreNodeLap::AtomicInt const> const& gid,
+                           Array4<int const> const& lid,
+                           HypreNodeLap::Int* const ncols,
+                           HypreNodeLap::Int* const cols,
+                           Real* const mat) const;
+
+    virtual void fillRHS (MFIter const& mfi, Array4<int const> const& lid,
+                          Real* const rhs, Array4<Real const> const& bfab) const override;
 #endif
 
 private:
 
     int m_is_rz = 0;
 
-    Real m_const_sigma = 0.0;
+    Real m_const_sigma = Real(0.0);
     Vector<Vector<Array<std::unique_ptr<MultiFab>,AMREX_SPACEDIM> > > m_sigma;
     Vector<Vector<std::unique_ptr<MultiFab> > > m_stencil;
     Vector<Vector<Real> > m_s0_norm0;
 
-    Real m_normalization_threshold = 1.e-10;
+    Real m_normalization_threshold = Real(1.e-8);
 
 #ifdef AMREX_USE_EB
     // they could be MultiCutFab
