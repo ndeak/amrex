@@ -40,6 +40,40 @@ inline Real getCellUpwindCoeff ( Real const &leftedgeVel, Real const &rightedgeV
    return coeff;
 }
 
+inline Real getCellUpwindCoeffLeft ( Real const &leftedgeVel, Real const &rightedgeVel ) {
+
+   Real coeff = 0.0;
+   if ( leftedgeVel*rightedgeVel < 0.0 ) { // Case where velocity change sign, use centered + art. visc
+      Real maxvel = std::max(fabs(leftedgeVel),fabs(rightedgeVel));
+         coeff -= 0.5*(leftedgeVel); // centered part
+         coeff += 0.5*maxvel; // art. visc.
+   } else { // same sign velocity, use upwind
+      if ( leftedgeVel < -eps ) 
+         coeff -= leftedgeVel;
+      else if ( fabs(leftedgeVel) <= eps )
+         coeff -= 0.5*leftedgeVel;
+   }
+
+   return coeff;
+}
+
+inline Real getCellUpwindCoeffRight ( Real const &leftedgeVel, Real const &rightedgeVel ) {
+
+   Real coeff = 0.0;
+   if ( leftedgeVel*rightedgeVel < 0.0 ) { // Case where velocity change sign, use centered + art. visc
+      Real maxvel = std::max(fabs(leftedgeVel),fabs(rightedgeVel));
+         coeff += 0.5*(rightedgeVel); // centered part
+         coeff += 0.5*maxvel; // art. visc.
+   } else { // same sign velocity, use upwind
+      if ( rightedgeVel > eps )
+         coeff += rightedgeVel;
+      else if ( fabs(rightedgeVel) <= eps )
+         coeff += 0.5*rightedgeVel;
+   }
+
+   return coeff;
+}
+
 inline Real getLeftCellUpwindCoeff ( Real const &leftedgeVel, Real const &rightedgeVel ) {
 
    Real coeff = 0.0;
@@ -147,6 +181,7 @@ void mlabecceclap_adotx (Box const& box, Array4<Real> const& y,
                              - cY(i,j  ,k,n)*getFaceStateUpwind(cY(i,j  ,k,n), x(i,j-1,k,n), x(i,j  ,k,n)))
                     - dhz   * (cZ(i,j,k+1,n)*getFaceStateUpwind(cZ(i,j,k+1,n), x(i,j,k  ,n), x(i,j,k+1,n))
                              - cZ(i,j,k  ,n)*getFaceStateUpwind(cZ(i,j,k  ,n), x(i,j,k-1,n), x(i,j,k  ,n)));
+                // printf("NON EB y(%i %i %i) = %.6e\n", i, j, k, y(i,j,k,n));
             }
         }
     }
