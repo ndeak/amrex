@@ -785,12 +785,13 @@ void mlebabecceclap_gsrb (Box const& box,
                        bool is_dirichlet, bool beta_on_centroid, bool phi_on_centroid,
                        Box const& vbox, int redblack, int ncomp) noexcept
 {
-    constexpr Real omega = 1.15;
+    // constexpr Real omega = 1.15;
+    constexpr Real omega = 0.7;
 
     const auto vlo = amrex::lbound(vbox);
     const auto vhi = amrex::ubound(vbox);
 
-    exit(1);
+    // exit(1);
 //    amrex::Loop(box, ncomp, [=] (int i, int j, int k, int n) noexcept
     // amrex::Loop here causes gcc 8 to crash.
     const auto lo = amrex::lbound(box);
@@ -1129,17 +1130,19 @@ void mlebabecceclap_gsrb (Box const& box,
                         (dhx*(apxm*sxm-apxp*sxp) +
                          dhy*(apym*sym-apyp*syp) +
                          dhz*(apzm*szm-apzp*szp) -
-                         dhxc*(apxm*sxm-apxp*sxp) -                                             
-                         dhyc*(apym*sym-apyp*syp) -
-                         dhzc*(apzm*szm-apzp*szp));
+                         dhxc*(apxm*sxmc-apxp*sxpc) -                                             
+                         dhyc*(apym*symc-apyp*sypc) -
+                         dhzc*(apzm*szmc-apzp*szpc));
 
                     Real rho = -vfrcinv *
                         (dhx*(apxm*fxm-apxp*fxp) +
                          dhy*(apym*fym-apyp*fyp) +
                          dhz*(apzm*fzm-apzp*fzp) +
-                         dhx*(apxm*fxm-apxp*fxp) +
-                         dhy*(apym*fym-apyp*fyp) +
-                         dhz*(apzm*fzm-apzp*fzp));
+                         dhxc*(apxm*fxmc-apxp*fxpc) +
+                         dhyc*(apym*fymc-apyp*fypc) +
+                         dhzc*(apzm*fzmc-apzp*fzpc));
+
+        
 
                     Real delta = -vfrcinv *
                         (dhx*(apxm*oxm-apxp*oxp) +

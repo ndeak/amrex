@@ -283,7 +283,9 @@ protected:
     static constexpr int mg_coarsen_ratio = 2;
     static constexpr int mg_box_min_width = 2;
 #ifdef AMREX_USE_EB
+    // TODO CHANGE BACK
     static constexpr int mg_domain_min_width = 4;
+    // static constexpr int mg_domain_min_width = 2;
 #else
     static constexpr int mg_domain_min_width = 2;
 #endif
