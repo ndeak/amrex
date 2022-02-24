@@ -12,6 +12,7 @@ target_sources( amrex
    AMReX_BlockMutex.cpp
    AMReX_GpuComplex.H
    AMReX_Vector.H
+   AMReX_TableData.H
    AMReX_Tuple.H
    AMReX.cpp
    AMReX_error_fi.cpp
@@ -34,7 +35,6 @@ target_sources( amrex
    AMReX_Random.H
    AMReX_RandomEngine.H
    AMReX_Random.cpp
-   AMReX_Slopes_K.H
    AMReX_BLassert.H
    AMReX_ArrayLim.H
    AMReX_REAL.H
@@ -51,6 +51,7 @@ target_sources( amrex
    AMReX_ForkJoin.cpp
    AMReX_ParallelContext.H
    AMReX_ParallelContext.cpp
+   AMReX_VisMFBuffer.H
    AMReX_VisMF.H
    AMReX_VisMF.cpp
    AMReX_AsyncOut.H
@@ -63,12 +64,9 @@ target_sources( amrex
    AMReX_BArena.cpp
    AMReX_CArena.H
    AMReX_CArena.cpp
-   AMReX_DArena.H
-   AMReX_DArena.cpp
-   AMReX_EArena.H
-   AMReX_EArena.cpp
    AMReX_PArena.H
    AMReX_PArena.cpp
+   AMReX_DataAllocator.H
    AMReX_BLProfiler.H
    AMReX_BLBackTrace.H
    AMReX_BLFort.H
@@ -77,6 +75,7 @@ target_sources( amrex
    AMReX_parstream.H
    AMReX_parstream.cpp
    # I/O stuff  --------------------------------------------------------------
+   AMReX_ANSIEscCode.H
    AMReX_FabConv.H
    AMReX_FabConv.cpp
    AMReX_FPC.H
@@ -166,9 +165,10 @@ target_sources( amrex
    AMReX_BC_TYPES.H
    AMReX_FilCC_${AMReX_SPACEDIM}D_C.H
    AMReX_FilCC_C.H
+   AMReX_FilCC_C.cpp
    AMReX_FilFC_${AMReX_SPACEDIM}D_C.H
    AMReX_FilFC_C.H
-   AMReX_FilCC_C.cpp
+   AMReX_FilFC_C.cpp
    AMReX_FilND_C.H
    AMReX_FilND_C.cpp
    # Non-Local BC
@@ -180,6 +180,11 @@ target_sources( amrex
    AMReX_PlotFileUtil.H
    AMReX_PlotFileDataImpl.H
    AMReX_PlotFileDataImpl.cpp
+   # Time Integration
+   AMReX_FEIntegrator.H
+   AMReX_IntegratorBase.H
+   AMReX_RKIntegrator.H
+   AMReX_TimeIntegrator.H
    # GPU --------------------------------------------------------------------
    AMReX_Gpu.H
    AMReX_GpuQualifiers.H
@@ -189,8 +194,6 @@ target_sources( amrex
    AMReX_GpuTypes.H
    AMReX_GpuControl.H
    AMReX_GpuControl.cpp
-   AMReX_GpuFuse.H
-   AMReX_GpuFuse.cpp
    AMReX_GpuLaunch.H
    AMReX_GpuLaunchGlobal.H
    AMReX_GpuLaunchMacrosG.H
@@ -216,6 +219,8 @@ target_sources( amrex
    AMReX_MFParallelFor.H
    AMReX_MFParallelForC.H
    AMReX_MFParallelForG.H
+   AMReX_TagParallelFor.H
+   AMReX_ParReduce.H
    # CUDA --------------------------------------------------------------------
    AMReX_CudaGraph.H
    # Machine model -----------------------------------------------------------

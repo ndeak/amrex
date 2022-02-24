@@ -1,6 +1,6 @@
 #include <AMReX_InSituBridge.H>
-
 #include <AMReX_ParmParse.H>
+#include <AMReX_Print.H>
 
 #ifdef AMREX_USE_SENSEI_INSITU
 #include <chrono>
@@ -8,8 +8,6 @@
 #include <AnalysisAdaptor.h>
 #include <ConfigurableAnalysis.h>
 #include <Profiler.h>
-#include <AMReX_AmrDataAdaptor.H>
-#include <AMReX_AmrMeshDataAdaptor.H>
 #endif
 
 namespace amrex {
@@ -49,14 +47,14 @@ InSituBridge::initialize()
     // read config from ParmParse
     ParmParse pp("sensei");
 
-    pp.query("enabled", enabled);
+    pp.queryAdd("enabled", enabled);
 
     if (!enabled)
         return 0;
 
-    pp.query("config", config);
-    pp.query("frequency", frequency);
-    pp.query("pin_mesh", pinMesh);
+    pp.queryAdd("config", config);
+    pp.queryAdd("frequency", frequency);
+    pp.queryAdd("pin_mesh", pinMesh);
 
     amrex::Print() << "SENSEI Begin initialize..." << std::endl;
 

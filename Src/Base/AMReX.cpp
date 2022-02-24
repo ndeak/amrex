@@ -385,19 +385,35 @@ amrex::Initialize (int& argc, char**& argv, bool build_parm_parse,
         }
         else if (argc > 1)
         {
-            int ppargc = 1;
-            for (; ppargc < argc; ++ppargc) {
-                if (strcmp(argv[ppargc], "--") == 0) break;
-            }
-            if (ppargc > 1)
+            if (argv[1][0] == '-')
             {
-                if (strchr(argv[1],'='))
-                {
-                    ParmParse::Initialize(ppargc-1,argv+1,0);
+                // If arguments list starts with "-", do not use ParmParse.
+                // Application code can then parse the command line. This will
+                // prevent "-h" or "--help" from creating errors in ParmParse,
+                // but only if it's the first argument after the executable.
+                ParmParse::Initialize(0,0,0);
+            }
+            else
+            {
+                // This counts command line arguments before a "--"
+                // and only sends the preceeding arguments to ParmParse;
+                // the rest get ingored.
+                int ppargc = 1;
+                for (; ppargc < argc; ++ppargc) {
+                    if (strcmp(argv[ppargc], "--") == 0) break;
                 }
-                else
+                if (ppargc > 1)
                 {
-                    ParmParse::Initialize(ppargc-2,argv+2,argv[1]);
+                    if (strchr(argv[1],'=') || (argc > 2 ? argv[2][0] == '=' : false) )
+                    {
+                        // No inputs file to parse
+                        ParmParse::Initialize(ppargc-1,argv+1,0);
+                    }
+                    else
+                    {
+                        // argv[1] is an inputs file
+                        ParmParse::Initialize(ppargc-2,argv+2,argv[1]);
+                    }
                 }
             }
         }
@@ -411,8 +427,8 @@ amrex::Initialize (int& argc, char**& argv, bool build_parm_parse,
 
     {
         ParmParse pp("amrex");
-        pp.query("v", system::verbose);
-        pp.query("verbose", system::verbose);
+        pp.queryAdd("v", system::verbose);
+        pp.queryAdd("verbose", system::verbose);
     }
 
 #ifdef AMREX_USE_GPU
@@ -425,11 +441,11 @@ amrex::Initialize (int& argc, char**& argv, bool build_parm_parse,
 
     {
         ParmParse pp("amrex");
-        pp.query("regtest_reduction", system::regtest_reduction);
-        pp.query("signal_handling", system::signal_handling);
-        pp.query("throw_exception", system::throw_exception);
-        pp.query("call_addr2line", system::call_addr2line);
-        pp.query("abort_on_unused_inputs", system::abort_on_unused_inputs);
+        pp.queryAdd("regtest_reduction", system::regtest_reduction);
+        pp.queryAdd("signal_handling", system::signal_handling);
+        pp.queryAdd("throw_exception", system::throw_exception);
+        pp.queryAdd("call_addr2line", system::call_addr2line);
+        pp.queryAdd("abort_on_unused_inputs", system::abort_on_unused_inputs);
 
         if (system::signal_handling)
         {
@@ -439,7 +455,7 @@ amrex::Initialize (int& argc, char**& argv, bool build_parm_parse,
             prev_handler_sigabrt = signal(SIGABRT, BLBackTrace::handler);
 
             int term = 0;
-            pp.query("handle_sigterm", term);
+            pp.queryAdd("handle_sigterm", term);
             if (term) {
                 prev_handler_sigterm = signal(SIGTERM,  BLBackTrace::handler);
             } else {
@@ -449,9 +465,9 @@ amrex::Initialize (int& argc, char**& argv, bool build_parm_parse,
             prev_handler_sigfpe = SIG_ERR;
 
             int invalid = 0, divbyzero=0, overflow=0;
-            pp.query("fpe_trap_invalid", invalid);
-            pp.query("fpe_trap_zero", divbyzero);
-            pp.query("fpe_trap_overflow", overflow);
+            pp.queryAdd("fpe_trap_invalid", invalid);
+            pp.queryAdd("fpe_trap_zero", divbyzero);
+            pp.queryAdd("fpe_trap_overflow", overflow);
 
 #if defined(__linux__)
             curr_fpe_excepts = 0;
@@ -481,7 +497,7 @@ amrex::Initialize (int& argc, char**& argv, bool build_parm_parse,
         }
 
 #ifdef AMREX_USE_HYPRE
-        pp.query("init_hypre", init_hypre);
+        pp.queryAdd("init_hypre", init_hypre);
 #endif
     }
 
@@ -516,10 +532,6 @@ amrex::Initialize (int& argc, char**& argv, bool build_parm_parse,
 
     machine::Initialize();
 
-#ifdef AMREX_USE_GPU
-    Gpu::Fuser::Initialize();
-#endif
-
 #ifdef AMREX_USE_HYPRE
     if (init_hypre) {
         HYPRE_Init();
@@ -531,7 +543,7 @@ amrex::Initialize (int& argc, char**& argv, bool build_parm_parse,
 #endif
 
 #ifdef AMREX_USE_SUNDIALS
-    sundials::Initialize();
+    sundials::Initialize(amrex::OpenMP::get_max_threads());
 #endif
 
     if (system::verbose > 0)
@@ -561,6 +573,12 @@ amrex::Initialize (int& argc, char**& argv, bool build_parm_parse,
 
     AMReX::push(new AMReX());
     return AMReX::top();
+}
+
+bool
+amrex::Initialized ()
+{
+    return !amrex::AMReX::empty();
 }
 
 void

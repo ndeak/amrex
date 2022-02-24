@@ -2,6 +2,7 @@
 #include "Constants.H"
 
 #include "CheckPair.H"
+#include <AMReX_SPACE.H>
 
 using namespace amrex;
 
@@ -10,16 +11,24 @@ namespace
     void get_position_unit_cell(Real* r, const IntVect& nppc, int i_part)
     {
         int nx = nppc[0];
+#if AMREX_SPACEDIM >= 2
         int ny = nppc[1];
+#else
+        int ny = 1;
+#endif
+#if AMREX_SPACEDIM == 3
         int nz = nppc[2];
+#else
+        int nz = 1;
+#endif
 
-        int ix_part = i_part/(ny * nz);
-        int iy_part = (i_part % (ny * nz)) % ny;
-        int iz_part = (i_part % (ny * nz)) / ny;
+        AMREX_D_TERM(int ix_part = i_part/(ny * nz);,
+                     int iy_part = (i_part % (ny * nz)) % ny;,
+                     int iz_part = (i_part % (ny * nz)) / ny;)
 
-        r[0] = (0.5+ix_part)/nx;
-        r[1] = (0.5+iy_part)/ny;
-        r[2] = (0.5+iz_part)/nz;
+        AMREX_D_TERM(r[0] = (0.5+ix_part)/nx;,
+                     r[1] = (0.5+iy_part)/ny;,
+                     r[2] = (0.5+iz_part)/nz;)
     }
 
     void get_gaussian_random_momentum(Real* u, Real u_mean, Real u_std) {
@@ -61,7 +70,7 @@ InitParticles(const IntVect& a_num_particles_per_cell,
 
         for (IntVect iv = tile_box.smallEnd(); iv <= tile_box.bigEnd(); tile_box.next(iv)) {
             for (int i_part=0; i_part<num_ppc;i_part++) {
-                Real r[3];
+                Real r[AMREX_SPACEDIM];
                 Real v[3];
 
                 get_position_unit_cell(r, a_num_particles_per_cell, i_part);
@@ -69,16 +78,16 @@ InitParticles(const IntVect& a_num_particles_per_cell,
                 get_gaussian_random_momentum(v, a_thermal_momentum_mean,
                                              a_thermal_momentum_std);
 
-                ParticleReal x = static_cast<ParticleReal> (plo[0] + (iv[0] + r[0])*dx[0]);
-                ParticleReal y = static_cast<ParticleReal> (plo[1] + (iv[1] + r[1])*dx[1]);
-                ParticleReal z = static_cast<ParticleReal> (plo[2] + (iv[2] + r[2])*dx[2]);
+                AMREX_D_TERM(ParticleReal x = static_cast<ParticleReal> (plo[0] + (iv[0] + r[0])*dx[0]);,
+                             ParticleReal y = static_cast<ParticleReal> (plo[1] + (iv[1] + r[1])*dx[1]);,
+                             ParticleReal z = static_cast<ParticleReal> (plo[2] + (iv[2] + r[2])*dx[2]);)
 
                 ParticleType p;
                 p.id()  = ParticleType::NextID();
                 p.cpu() = ParallelDescriptor::MyProc();
-                p.pos(0) = x;
-                p.pos(1) = y;
-                p.pos(2) = z;
+                AMREX_D_TERM(p.pos(0) = x;,
+                             p.pos(1) = y;,
+                             p.pos(2) = z;)
 
                 p.rdata(PIdx::vx) = static_cast<ParticleReal> (v[0]);
                 p.rdata(PIdx::vy) = static_cast<ParticleReal> (v[1]);
@@ -165,11 +174,11 @@ std::pair<Real, Real> MDParticleContainer::minAndMaxDistance()
 
             for (const auto& p2 : nbor_data.getNeighbors(i))
             {
-                Real dx = p1.pos(0) - p2.pos(0);
-                Real dy = p1.pos(1) - p2.pos(1);
-                Real dz = p1.pos(2) - p2.pos(2);
+                AMREX_D_TERM(Real dx = p1.pos(0) - p2.pos(0);,
+                             Real dy = p1.pos(1) - p2.pos(1);,
+                             Real dz = p1.pos(2) - p2.pos(2);)
 
-                Real r2 = dx*dx + dy*dy + dz*dz;
+                Real r2 = AMREX_D_TERM(dx*dx, + dy*dy, + dz*dz);
                 r2 = amrex::max(r2, Params::min_r*Params::min_r);
                 Real r = sqrt(r2);
 
@@ -211,9 +220,9 @@ void MDParticleContainer::moveParticles(amrex::ParticleReal dx)
         AMREX_FOR_1D ( np, i,
         {
             ParticleType& p = pstruct[i];
-            p.pos(0) += dx;
-            p.pos(1) += dx;
-            p.pos(2) += dx;
+            AMREX_D_TERM(p.pos(0) += dx;,
+                         p.pos(1) += dx;,
+                         p.pos(2) += dx;)
         });
     }
 }
@@ -234,8 +243,8 @@ void MDParticleContainer::checkNeighborParticles()
 
     int ngrids = ParticleBoxArray(0).size();
 
-    amrex::Gpu::ManagedVector<int> d_num_per_grid(ngrids,0);
-    int* p_num_per_grid = d_num_per_grid.data();
+    amrex::Gpu::DeviceVector<int> d_num_per_grid(ngrids,0);
+    amrex::Gpu::HostVector<int> h_num_per_grid(ngrids);
 
     // CPU version
     for(MFIter mfi = MakeMFIter(lev); mfi.isValid(); ++mfi)
@@ -255,67 +264,26 @@ void MDParticleContainer::checkNeighborParticles()
         auto rdata = soa.GetRealData(0).dataPtr();
         auto idata = soa.GetIntData(0).dataPtr();
 
-        for (int i = 0; i < np; i++)
+        int* p_num_per_grid = d_num_per_grid.data();
+        amrex::ParallelFor( np, [=] AMREX_GPU_DEVICE (int i) noexcept
         {
             ParticleType& p1 = pstruct[i];
             Gpu::Atomic::AddNoRet(&(p_num_per_grid[p1.idata(0)]),1);
             AMREX_ALWAYS_ASSERT(p1.idata(0) == (int) rdata[i]);
             AMREX_ALWAYS_ASSERT(p1.idata(0) == idata[i]);
-        }
-
-        amrex::AllPrintToFile("neighbor_test") << "FOR GRID " << gid << "\n";;
-
-        for (int i = 0; i < ngrids; i++)
-          amrex::AllPrintToFile("neighbor_test") << "   there are " << d_num_per_grid[i] << " with grid id " << i << "\n";;
-
-        amrex::AllPrintToFile("neighbor_test") << " \n";
-        amrex::AllPrintToFile("neighbor_test") << " \n";
-    }
-
-#if 0
-    // GPU version
-    for(MFIter mfi = MakeMFIter(lev); mfi.isValid(); ++mfi)
-    {
-        int gid = mfi.index();
-
-        // int mine = 0;
-
-        // amrex::Gpu::DeviceScalar<int> d_mine(mine);
-        // int* p_mine = d_mine.dataPtr();
-
-        if (gid != 0) continue;
-        int tid = mfi.LocalTileIndex();
-        auto index = std::make_pair(gid, tid);
-
-        auto& ptile = plev[index];
-        auto& aos   = ptile.GetArrayOfStructs();
-        const size_t np = aos.numTotalParticles();
-
-        ParticleType* pstruct = aos().dataPtr();
-
-        // now we loop over the neighbor list and compute the forces
-        AMREX_FOR_1D ( np, i,
-        {
-            ParticleType& p1 = pstruct[i];
-
-            // Gpu::Atomic::AddNoRet(p_mine,1);
-
-            Gpu::Atomic::AddNoRet(&(p_num_per_grid[p1.idata(0)]),1);
         });
 
-        Gpu::Device::synchronize();
-
-        // mine = d_mine.dataValue();
-
+        Gpu::copy(Gpu::deviceToHost,
+                  d_num_per_grid.begin(), d_num_per_grid.end(), h_num_per_grid.begin());
         amrex::AllPrintToFile("neighbor_test") << "FOR GRID " << gid << "\n";;
 
-        for (int i = 0; i < ngrids; i++)
-          amrex::AllPrintToFile("neighbor_test") << "   there are " << d_num_per_grid[i] << " with grid id " << i << "\n";;
+        for (int i = 0; i < ngrids; i++) {
+          amrex::AllPrintToFile("neighbor_test") << "   there are " << h_num_per_grid[i] << " with grid id " << i << "\n";
+        }
 
         amrex::AllPrintToFile("neighbor_test") << " \n";
         amrex::AllPrintToFile("neighbor_test") << " \n";
     }
-#endif
 }
 
 void MDParticleContainer::checkNeighborList()
@@ -338,25 +306,15 @@ void MDParticleContainer::checkNeighborList()
         const int np       = aos.numParticles();
         const int np_total = aos.numTotalParticles();
 
-        amrex::Gpu::ManagedVector<int> d_neighbor_count(np,0);
-        int* p_neighbor_count = d_neighbor_count.data();
+        amrex::Vector<unsigned int> full_count(np,0);
+        amrex::Vector<unsigned int> full_nbors;
+        amrex::Gpu::HostVector<ParticleType> h_pstruct(np_total);
+        Gpu::copy(Gpu::deviceToHost, aos().dataPtr(), aos().dataPtr() + np_total, h_pstruct.begin());
 
-        amrex::Gpu::ManagedVector<int> d_full_count(np,0);
-        int* p_full_count = d_full_count.data();
-
-        auto nbor_data = m_neighbor_list[lev][index].data();
-        ParticleType* pstruct = aos().dataPtr();
-
-        // ON DEVICE:
-        // AMREX_FOR_1D ( np, i,
-        // ON HOST:
-        // for (int i = 0; i < np; i++)
+        // on the host, construct neighbor list using full N^2 search
         for (int i = 0; i < np; i++)
         {
-            ParticleType& p1 = pstruct[i];
-
-            amrex::Vector<int> nbor_nbors;
-            amrex::Vector<int> full_nbors;
+            ParticleType& p1 = h_pstruct[i];
 
             // Loop over all particles
             for (int j = 0; j < np_total; j++)
@@ -364,57 +322,49 @@ void MDParticleContainer::checkNeighborList()
                 // Don't be your own neighbor.
                 if ( i == j ) continue;
 
-                ParticleType& p2 = pstruct[j];
-                Real dx = p1.pos(0) - p2.pos(0);
-                Real dy = p1.pos(1) - p2.pos(1);
-                Real dz = p1.pos(2) - p2.pos(2);
+                ParticleType& p2 = h_pstruct[j];
+                AMREX_D_TERM(Real dx = p1.pos(0) - p2.pos(0);,
+                             Real dy = p1.pos(1) - p2.pos(1);,
+                             Real dz = p1.pos(2) - p2.pos(2);)
 
-                Real r2 = dx*dx + dy*dy + dz*dz;
+                Real r2 = AMREX_D_TERM(dx*dx, + dy*dy, + dz*dz);
 
                 Real cutoff_sq = 25.0*Params::cutoff*Params::cutoff;
 
                 if (r2 <= cutoff_sq)
                 {
-                   Gpu::Atomic::AddNoRet(&(p_full_count[i]),1);
-                   full_nbors.push_back(p2.id());
+                    full_count[i] += 1;
+                    full_nbors.push_back(j);
                 }
             }
+        }
 
-            for (const auto& p2 : nbor_data.getNeighbors(i))
-            {
-                Gpu::Atomic::AddNoRet(&(p_neighbor_count[i]),1);
-                nbor_nbors.push_back(p2.id());
-            }
+        // copy the bin-constructed neighbor list to host
+        auto& d_counts = m_neighbor_list[lev][index].GetCounts();
+        Gpu::HostVector<unsigned int> h_counts(d_counts.size());
+        Gpu::copy(Gpu::deviceToHost, d_counts.begin(), d_counts.end(), h_counts.begin());
 
-            std::sort(full_nbors.begin(), full_nbors.end());
-            std::sort(nbor_nbors.begin(), nbor_nbors.end());
+        auto& d_list = m_neighbor_list[lev][index].GetList();
+        Gpu::HostVector<unsigned int> h_list(d_list.size());
+        Gpu::copy(Gpu::deviceToHost, d_list.begin(), d_list.end(), h_list.begin());
 
-            if (nbor_nbors.size() != full_nbors.size())
-            {
-               amrex::PrintToFile("neighbor_test") << "Number of neighbors do not match for particle " << i << std::endl;
-               amrex::PrintToFile("neighbor_test") << "Neighbor list has " << nbor_nbors.size() << " particles " << std::endl;
-               amrex::PrintToFile("neighbor_test") << "Full N^2 list has " << full_nbors.size() << " particles " << std::endl;
-               amrex::Abort();
-            }
+        // check answer
+        for (int i = 0; i < np; ++i) {
+            AMREX_ALWAYS_ASSERT(h_counts[i] == full_count[i]);
+        }
 
-            // amrex::PrintToFile("neighbor_test") << "   there are " << nbor_nbors.size() << " " <<
-            //                  full_nbors.size() << " list / full neighbors of particle " << i << std::endl;
+        // order not the same, so sort here
+        unsigned start = 0;
+        for (int i = 0; i < np; ++i) {
+            std::sort(full_nbors.data() + start, full_nbors.data() + start + full_count[i]);
+            std::sort(h_list.data() + start, h_list.data() + start + full_count[i]);
+            start += full_count[i];
+        }
 
-            // Loop over particles in my neighbor list
-            for (int cnt = 0; cnt < nbor_nbors.size(); cnt++)
-            {
-                // std::cout << "   NBORS " << nbor_nbors[cnt] << " " << full_nbors[cnt] << std::endl;
-                if (nbor_nbors[cnt] != full_nbors[cnt])
-                {
-                     amrex::PrintToFile("neighbor_test") << "Index of neighbors do not match for particle " << i << std::endl;
-                     amrex::PrintToFile("neighbor_test") << "Neighbor list neighbor index: " << nbor_nbors[cnt]  << std::endl;
-                     amrex::PrintToFile("neighbor_test") << "Full N^2 list neighbor index: " << full_nbors[cnt]  << std::endl;
-                     amrex::Abort();
-                }
-            }
-
-        } // i
-    } // MFIter
+        for (unsigned i = 0; i < h_list.size(); ++i) {
+            AMREX_ALWAYS_ASSERT(h_list[i] == full_nbors[i]);
+        }
+    }
 
     amrex::PrintToFile("neighbor_test") << "All the neighbor list particles match!" << std::endl;
 }
