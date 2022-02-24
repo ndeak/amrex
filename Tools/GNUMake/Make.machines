@@ -51,6 +51,11 @@ ifdef OLCF_ROCM_ROOT
     which_site := olcf
     which_computer := spock
   endif
+
+  ifeq ($(findstring crusher, $(host_name)), crusher)
+    which_site := olcf
+    which_computer := crusher
+  endif
 endif
 
 ifeq ($(findstring theta, $(host_name)), theta)
@@ -125,5 +130,12 @@ endif
 ifneq (,$(filter $(host_name_env),poplar redwood tulip))
   which_site := frontier-coe
   which_computer := $(host_name_env)
+endif
+
+ifeq ($(findstring "cray.com", $(host_name)),"cray.com")
+ifeq ($(findstring birch, $(host_name)),birch)
+  which_site := frontier-coe
+  which_computer := $(host_name_env)
+endif
 endif
 

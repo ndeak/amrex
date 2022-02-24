@@ -9,6 +9,7 @@ using namespace amrex;
 
 bool    ParticleContainerBase::do_tiling = false;
 IntVect ParticleContainerBase::tile_size { AMREX_D_DECL(1024000,8,8) };
+bool    ParticleContainerBase::memEfficientSort = true;
 
 void ParticleContainerBase::Define (const Geometry            & geom,
                                     const DistributionMapping & dmap,
@@ -101,8 +102,9 @@ const std::string& ParticleContainerBase::Version ()
     //
     //    "Version_One_Dot_Zero"
     //    "Version_One_Dot_One"
+    //    "Version_Two_Dot_Zero" (before checkpoints had expanded particle ids)
     //
-    static const std::string version("Version_Two_Dot_Zero");
+    static const std::string version("Version_Two_Dot_One");
 
     return version;
 }
@@ -128,7 +130,7 @@ int ParticleContainerBase::MaxReaders ()
         first = false;
         ParmParse pp("particles");
         Max_Readers = Max_Readers_def;
-        pp.query("nreaders", Max_Readers);
+        pp.queryAdd("nreaders", Max_Readers);
         Max_Readers = std::min(ParallelDescriptor::NProcs(),Max_Readers);
         if (Max_Readers <= 0)
         {
@@ -154,7 +156,7 @@ Long ParticleContainerBase::MaxParticlesPerRead ()
         first = false;
         ParmParse pp("particles");
         Max_Particles_Per_Read = Max_Particles_Per_Read_def;
-        pp.query("nparts_per_read", Max_Particles_Per_Read);
+        pp.queryAdd("nparts_per_read", Max_Particles_Per_Read);
         if (Max_Particles_Per_Read <= 0)
         {
             amrex::Abort("particles.nparts_per_read must be positive");
@@ -174,7 +176,7 @@ const std::string& ParticleContainerBase::AggregationType ()
         first = false;
         aggregation_type = "None";
         ParmParse pp("particles");
-        pp.query("aggregation_type", aggregation_type);
+        pp.queryAdd("aggregation_type", aggregation_type);
         if (!(aggregation_type == "None" || aggregation_type == "Cell"))
         {
             amrex::Abort("particles.aggregation_type not implemented.");
@@ -194,7 +196,7 @@ int ParticleContainerBase::AggregationBuffer ()
         first = false;
         aggregation_buffer = 2;
         ParmParse pp("particles");
-        pp.query("aggregation_buffer", aggregation_buffer);
+        pp.queryAdd("aggregation_buffer", aggregation_buffer);
         if (aggregation_buffer <= 0)
         {
             amrex::Abort("particles.aggregation_buffer must be positive");

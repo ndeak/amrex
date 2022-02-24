@@ -90,7 +90,7 @@ void test_ghosts_and_virtuals (TestParams& parms)
     int num_particles = parms.nppc * AMREX_D_TERM(parms.nx, * parms.ny, * parms.nz);
     bool serialize = true;
     int iseed = 451;
-    Real mass = 10.0;
+    double mass = 10.0;
     MyParticleContainer::ParticleInitData pdata = {{mass}, {}, {}, {}};
 
     myPC.InitRandom(num_particles, iseed, pdata, serialize);
@@ -420,8 +420,8 @@ void test_ghosts_and_virtuals_randomperbox (TestParams& parms)
 
     int num_particles = parms.nppc;
     int iseed = 451;
-    Real mass = 10.0;
-    Real xvel, yvel, zvel;
+    double mass = 10.0;
+    double xvel, yvel, zvel;
     Real total_virts_test = 0.0;
     Real tol = 1e-4;
     xvel = 1.0;
@@ -611,8 +611,8 @@ void test_ghosts_and_virtuals_onepercell (TestParams& parms)
     MyParticleContainer myPC(geom, dmap, ba, rr);
     myPC.SetVerbose(false);
 
-    Real mass = 10.0;
-    Real xvel, yvel, zvel;
+    double mass = 10.0;
+    double xvel, yvel, zvel;
     Real xoff, yoff, zoff;
     xvel = 1.0;
     yvel = 2.0;
@@ -763,8 +763,10 @@ int main(int argc, char* argv[])
   amrex::Print()<<"Original test"<<std::endl;
   test_ghosts_and_virtuals(parms);
 
+#ifndef AMREX_USE_DPCPP
   amrex::Print()<<"RandomPerBox test"<<std::endl;
   test_ghosts_and_virtuals_randomperbox(parms);
+#endif
 
   amrex::Print()<<"OnePerCell test"<<std::endl;
   test_ghosts_and_virtuals_onepercell(parms);

@@ -55,7 +55,7 @@ namespace amrex
         memCopyImpl (void* dst, const void* src, std::size_t count)
         {
 #ifdef AMREX_USE_GPU
-            Gpu::dtod_memcpy(dst, src, count);
+            Gpu::dtod_memcpy_async(dst, src, count);
 #else
             std::memcpy(dst, src, count);
 #endif
@@ -212,7 +212,7 @@ namespace amrex
             a_vector.m_capacity = 0;
         }
 
-        ~PODVector () noexcept { deallocate(m_data, capacity()); }
+        ~PODVector () noexcept { if (m_data != nullptr) { deallocate(m_data, capacity()); }}
 
         PODVector& operator= (const PODVector<T, Allocator>& a_vector) noexcept
         {

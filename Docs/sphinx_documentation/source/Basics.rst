@@ -208,11 +208,19 @@ ParmParse
 
 :cpp:`ParmParse` in AMReX_ParmParse.H is a class providing a database for the
 storage and retrieval of command-line and input-file arguments. When
-:cpp:`amrex::Initialize(int& argc, char**& argv)` is called, the first command-line argument after the
-executable name (if there is one and it does not contain character =) is taken
-to be the inputs file, and the contents in the file are used to initialize the
+:cpp:`amrex::Initialize(int& argc, char**& argv)` is called, the first command-line
+argument after the executable name (if there is one, and it does not contain the character
+'=' or start with '\-') is taken
+to be the inputs file, and the contents of the file are used to initialize the
 :cpp:`ParmParse` database. The rest of the command-line arguments are also
-parsed by :cpp:`ParmParse`. The format of the inputs file is a series of
+parsed by :cpp:`ParmParse`, with the exception of those following a '\-\-' which signals
+command line sharing (see section :ref:`sec:basics:parmparse:sharingCL` ).
+
+Inputs File
+-----------
+
+The format of the inputs
+file is a series of
 definitions in the form of ``prefix.name = value value ....`` For each line,
 text after # are comments. Here is an example inputs file.
 
@@ -265,11 +273,17 @@ Note that when there are multiple definitions for a parameter :cpp:`ParmParse`
 by default returns the last one. The difference between :cpp:`query` and
 :cpp:`get` should also be noted. It is a runtime error if :cpp:`get` fails to
 get the value, whereas :cpp:`query` returns an error code without generating a
-runtime error that will abort the run.  It is sometimes convenient to
+runtime error that will abort the run.
+
+Overriding Parameters with Command-Line Arguments
+-------------------------------------------------
+
+It is sometimes convenient to
 override parameters with command-line arguments without modifying the inputs
 file. The command-line arguments after the inputs file are added later than the
-file to the database and are therefore used by default. For example, one can
-run with
+file to the database and are therefore used by default. For example,
+to change the value of :cpp:`ncells` and :cpp:`hydro.cfl`, one can
+run with:
 
 .. highlight:: console
 
@@ -277,35 +291,100 @@ run with
 
         myexecutable myinputsfile ncells="64 32 16" hydro.cfl=0.9
 
-to change the value of :cpp:`ncells` and :cpp:`hydro.cfl`.
 
-Sometimes an application code may want to set a default that differs from the
-default in AMReX.  In this case, it is often convenient to define a function that
-sets the variable(s), and pass the name of that function to :cpp:`amrex::Initialize`.
-As an example, we may define :cpp:`add_par` to set :cpp:`extend_domain_face`
-to false if it hasn't already been set in the inputs file.
+Setting Parameter Values Inside Functions
+-----------------------------------------
 
-.. highlight:: c++
+An application code may want to set values or defaults that differ from the
+those in AMReX in a function. This is accomplished in two steps:
+
+- First, define a function that sets the variable(s).
+
+- Second, pass the name of that function to :cpp:`amrex::Initialize`.
+
+The example function below sets variable values using two different
+approaches to highlight subtle differences in implementation:
+
+.. code-block:: cpp
+
+   void add_par () {
+      ParmParse pp("eb2");
+
+      // `variable_one` can be overridden by an inputs file and/or command line argument.
+      if(not pp.contains("variable_one")) {
+         pp.add("variable_one",false);
+      }
+
+      // The inputs file or command line arguments for `variable_two` are ignored.
+      pp.add("variable_two",false);
+   };
+
+First this function, :cpp:`add_par`, declares a ``ParmParse`` object that will be
+used to set variables. In the next section of code, we check if the value for
+``variable_one`` has already been set elsewhere before writing to it. This
+approach prevents the function
+from overriding a value set in the inputs file or at the command line.
+In the next section, we write a value to ``variable_two`` without a conditional
+statement. In this case, we will ignore values for ``variable_two`` set in the
+inputs file or as a command line argument ---effectively overriding them with
+the value set here in the function.
+
+In the second step, we pass the name of the function we defined to ``amrex::Initialize``.
+In the example above the function was called ``add_par``, and therefore we write,
+
+.. code-block:: cpp
+
+   amrex::Initialize(argc, argv, true, MPI_COMM_WORLD, add_par);
+
+Now AMReX will use the user defined function to appropriately set the desired values.
+
+.. _sec:basics:parmparse:sharingCL:
+
+Sharing the Command Line
+------------------------
+
+In some cases we want AMReX to only read some of the command line
+arguments -- this happens, for example, when we are going to use AMReX
+in cooperation with another code package and that code also takes arguments.
+
+Consider:
+
+.. highlight:: console
 
 ::
 
-    void add_par () {
-       ParmParse pp("eb2");
-       if(not pp.contains("extend_domain_face")) {
-          pp.add("extend_domain_face",false);
-       }
-    };
+    main2d.gnu.exe inputs amrex.v=1 amrex.fpe_trap_invalid=1 -- -tao_monitor
 
-Then we would pass :cpp:`add_par` into :cpp:`amrex::Initialize`:
+In this example, AMReX will parse the inputs file and the optional AMReX
+command line arguments, but will ignore arguments after the double dashes.
 
-.. highlight:: c++
+Command Line Flags
+------------------
 
-::
+AMReX allows application codes to parse flags such as ``-h`` or ``--help``
+while still making use of ParmParse for parsing other runtime parameters but only
+if it is the first argument after the executable. If the first argument following
+the executable name begins with a dash, AMReX will initialize without reading
+any parameters and the application code may then parse the command line and
+handle those cases. Several built in functions are available to help do this.
+They are briefly introduced in the table below.
 
-    amrex::Initialize(argc, argv, true, MPI_COMM_WORLD, add_par);
+.. table:: AMReX functions for parsing the command line.
 
-This value replaces the current default value of true in AMReX itself, but
-can still be over-written by setting a value in the inputs file.
+   +-------------------------------------------+--------+-------------------------------------------+
+   | Function                                  | Type   | Purpose                                   |
+   +===========================================+========+===========================================+
+   | ``amrex::get_command()``                  | String | Get the entire command line.              |
+   +-------------------------------------------+--------+-------------------------------------------+
+   | ``amrex::get_argument_count()``           | Int    | Get the number of command line arguments  |
+   |                                           |        | after the executable.                     |
+   +-------------------------------------------+--------+-------------------------------------------+
+   | ``amrex:get_command_argument(int n)``     | String | Returns the n-th argument after           |
+   |                                           |        | the exectuable.                           |
+   +-------------------------------------------+--------+-------------------------------------------+
+
+
+
 
 .. _sec:basics:parser:
 
@@ -316,16 +395,19 @@ AMReX provides a parser in ``AMReX_Parser.H`` that can be used at runtime to eva
 expressions given in the form of string.  It supports ``+``, ``-``, ``*``,
 ``/``, ``**`` (power), ``^`` (power), ``sqrt``, ``exp``, ``log``, ``log10``,
 ``sin``, ``cos``, ``tan``, ``asin``, ``acos``, ``atan``, ``sinh``, ``cosh``,
-``tanh``, and ``abs``.  The minimum and maximum of two numbers can be
-computed with ``min`` and ``max``, respectively.  It supports the Heaviside
-step function, ``heaviside(x1,x2)`` that gives ``0``, ``x2``, ``1``, for
-``x1 < 0``, ``x1 = 0`` and ``x1 > 0``, respectively.  There is ``if(a,b,c)``
-that gives ``b`` or ``c`` depending on the value of ``a``.  A number of
-comparison operators are supported, including ``<``, ``>``, ``==``, ``!=``,
-``<=``, and ``>=``.  The Boolean results from comparison can be combined by
-``and`` and ``or``, and they hold the value ``1`` for true and ``0`` for
-false.  The precedence of the operators follows the convention of the C and
-C++ programming languages.  Here is an example of using the parser.
+``tanh``, ``abs``, ``floor``, ``ceil`` and ``fmod``.  The minimum and maximum of two
+numbers can be computed with ``min`` and ``max``, respectively.  It supports
+the Heaviside step function, ``heaviside(x1,x2)`` that gives ``0``, ``x2``,
+``1``, for ``x1 < 0``, ``x1 = 0`` and ``x1 > 0``, respectively.
+It also supports the Bessel function of the first kind of order ``n``
+``jn(n,x)``.
+There is ``if(a,b,c)`` that gives ``b`` or ``c`` depending on the value of
+``a``.  A number of comparison operators are supported, including ``<``,
+``>``, ``==``, ``!=``, ``<=``, and ``>=``.  The Boolean results from
+comparison can be combined by ``and`` and ``or``, and they hold the value ``1``
+for true and ``0`` for false.  The precedence of the operators follows the
+convention of the C and C++ programming languages.  Here is an example of using
+the parser.
 
 .. highlight: c++
 
@@ -424,21 +506,6 @@ inserted by the compiler) do not function properly after
 (e.g., a pair of curly braces or a separate function) to make sure
 resources are properly freed.
 
-Sharing the Command Line
-------------------------
-
-In some cases we want AMReX to only read part of the command line -- this happens, for example, when we
-are going to use AMReX in cooperation with another code package and that code also takes command-line
-arguments.
-
-.. highlight:: console
-
-::
-
-    main2d*.exe inputs amrex.v=1 amrex.fpe_trap_invalid=1 -- -tao_monitor
-
-then AMReX will parse the inputs file and the optional AMReX's command
-line arguments, but will ignore everything after the double dashes.
 
 .. _sec:basics:amrgrids:
 
@@ -841,14 +908,18 @@ space domain, a :cpp:`RealBox` specifying the
 physical domain, an :cpp:`int` specifying coordinate system type, and
 an :cpp:`int` pointer or array specifying periodicity. If a :cpp:`RealBox` is not
 given in the first constructor, AMReX  will construct one based on :cpp:`ParmParse` parameters,
-``geometry.prob_lo`` and ``geometry.prob_hi``, where each of the parameter is
-an array of ``AMREX_SPACEDIM`` real numbers. It's a runtime error if this
-fails. The argument for coordinate system is an integer type with
+``geometry.prob_lo`` / ``geometry.prob_hi`` / ``geometry.prob_extent``,
+where each of the parameter is an array of ``AMREX_SPACEDIM`` real numbers.
+See the section on :ref:`sec:inputs:pd` for more details about how to specify these.
+
+The argument for coordinate system is an integer type with
 valid values being 0 (Cartesian), or 1 (cylindrical), or 2 (spherical). If it
 is invalid as in the case of the default argument value of the first constructor, AMReX will query the
 :cpp:`ParmParse` database for ``geometry.coord_sys`` and use it if one is
 found. If it cannot find the parameter, the coordinate system is set to 0
-(i.e., Cartesian coordinates). The :cpp:`Geometry` class has the concept of
+(i.e., Cartesian coordinates).
+
+The :cpp:`Geometry` class has the concept of
 periodicity.  An argument can be passed specifying periodicity in each
 dimension. If it is not given in the first constructor, the domain is assumed to be non-periodic unless
 there is the :cpp:`ParmParse` integer array parameter ``geometry.is_periodic``
@@ -2626,274 +2697,12 @@ want AMReX to handle this, ``ParmParse`` parameter
 `amrex.signal_handling=0` can be used to disable it.
 
 
-.. _sec:basics:debugging:
 
-Debugging
-=========
-
-Debugging is an art.  Everyone has their own favorite method.  Here we
-offer a few tips we have found to be useful.
-
-To help debugging, AMReX handles various signals in the C standard
-library raised in the runs.  This gives us a chance to print out more
-information using Linux/Unix backtrace capability.  The signals
-include seg fault, interruption by the user (control-c), assertion
-errors, and floating point exceptions (NaNs, divided by zero and
-overflow).  The handling of seg fault, assertion errors and
-interruption by control-C are enabled by default.  Note that
-``AMREX_ASSERT()`` is only on when compiled with ``DEBUG=TRUE`` or
-``USE_ASSERTION=TRUE`` in GNU make, or with ``-DCMAKE_BUILD_TYPE=Debug`` or
-``-DAMReX_ASSERTIONS=YES`` in CMake.  The trapping of floating point exceptions is not
-enabled by default unless the code is compiled with ``DEBUG=TRUE`` in GNU make, or with
-``-DCMAKE_BUILD_TYPE=Debug`` or ``-DAMReX_FPE=YES`` in CMake to turn on compiler flags
-if supported.  Alternatively, one can always use runtime parameters to control the
-handling of floating point exceptions: ``amrex.fpe_trap_invalid`` for
-NaNs, ``amrex.fpe_trap_zero`` for division by zero and
-``amrex.fpe_trap_overflow`` for overflow.  To more effectively trap the
-use of uninitialized values, AMReX also initializes ``FArrayBox``\ s in
-``MulitFab``\ s and arrays allocated by ``bl_allocate`` to signaling NaNs when it is compiled
-with ``TEST=TRUE`` or ``DEBUG=TRUE`` in GNU make, or with ``-DCMAKE_BUILD_TYPE=Debug`` in CMake.
-One can also control the setting for ``FArrayBox`` using the runtime parameter, ``fab.init_snan``.
-
-One can get more information than the backtrace of the call stack by
-instrumenting the code.  Here is an example.
-You know the line ``Real rho = state(cell,0);`` is causing a segfault.  You
-could add a print statement before that.  But it might print out
-thousands (or even millions) of line before it hits the segfault.  What
-you could do is the following,
-
-.. highlight:: c++
-
-::
-
-   #include <AMReX_BLBackTrace.H>
-
-   std::ostringstream ss;
-   ss << "state.box() = " << state.box() << " cell = " << cell;
-   BL_BACKTRACE_PUSH(ss.str()); // PUSH takes std::string
-
-   Real rho = state(cell,0);  // state is a Fab, and cell is an IntVect.
-
-   BL_BACKTRACE_POP(); // One can omit this line.  In that case,
-                       // there is an implicit POP when "PUSH" is
-                       // out of scope.
-
-When it hits the segfault, you will only see the last pint out.
-
-Writing a ``MultiFab`` to disk with
-
-.. highlight:: c++
-
-::
-
-    VisMF::Write(const FabArray<FArrayBox>& mf, const std::string& name)
-
-in ``AMReX_VisMF.H`` and examining it with ``Amrvis`` (section
-:ref:`sec:amrvis`) can be helpful as well.  In
-``AMReX_MultiFabUtil.H``, function
-
-.. highlight:: c++
-
-::
-
-    void print_state(const MultiFab& mf, const IntVect& cell, const int n=-1);
-
-can output the data for a single cell.
-
-Valgrind is one of our favorite debugging tools.  For MPI runs, one can
-tell valgrind to output to different files for different processes.
-For example,
-
-.. highlight:: console
-
-::
-
-    mpiexec -n 4 valgrind --leak-check=yes --track-origins=yes --log-file=vallog.%p ./foo.exe ...
-
-Breaking into Debuggers
-=======================
-
-In order to break into debuggers and use modern IDEs, the backtrace signal handling described above needs to be disabled.
-
-The following runtime options need to be set in order to prevent AMReX from catching the break signals before a debugger can attach to a crashing process:
-
-::
-
-   amrex.throw_exception = 1
-   amrex.signal_handling = 0
-
-This default behavior can also be modified by applications, see for example `this custom application initializer <https://github.com/Exawind/amr-wind/blob/84f81a990152f4f748c1ab0fa17c8c663e51df86/amr-wind/main.cpp#L21>`__.
-
-
-.. _sec:basics:heat1:
-
-Example: HeatEquation_EX1_C
-===========================
-
-We now present an example of solving the heat equation.  The source
-code tree for the heat equation example is simple, as shown in
-:numref:`fig:Basics_Heat_flowchart`. We recommend you study
-``main.cpp`` and ``advance.cpp`` to see some of the classes described
-below in action.
-
-.. raw:: latex
-
-   \begin{center}
-
-.. _fig:Basics_Heat_flowchart:
-
-.. figure:: ./Basics/figs/flowchart.png
-   :width: 4in
-
-   Diagram of the source code structure for the HeatEquation_EX1_C example.
-
-.. raw:: latex
-
-   \end{center}
-
-Source code tree for the HeatEquation_EX1_C example
-
-    amrex/Src/Base
-        Contains source code for single-level simulations.  Note that in
-        ``amrex/Src`` there are many sub-directories, e.g., ``Base``, ``Amr``,
-        ``AmrCore``, ``LinearSolvers``, etc.  In this tutorial the only source
-        code directory we need is ``Base``.
-
-    amrex/Tutorials/HeatEquation_EX1_C/Source
-        Contains the following source code specific to this tutorial:
-
-        #. ``Make.package``: lists the source code files
-        #. ``main.cpp``: contains the C++ ``main`` function
-        #. ``myfunc.cpp``: contains function ``advance`` that advances
-           the solution by a time step, and function ``init_phi`` that
-           initializes the initial solution.
-        #. ``myfunc.H``: header file for C++ functions
-        #. ``mykernel.H``: kernels functions called by ``advance`` and ``init_phi``.
-
-    amrex/Tutorials/HeatEquation_EX1_C/Exec
-        This is where you build the code with make.  There is a GNUmakefile
-        and inputs file.
-
-Now we highlight a few key sections of the code.  In ``main.cpp`` we
-demonstrate how to read in parameters from the inputs file:
-
-.. highlight:: c++
-
-::
-
-    // inputs parameters
-    {
-        // ParmParse is way of reading inputs from the inputs file
-        ParmParse pp;
-
-        // We need to get n_cell from the inputs file - this is the number of cells on each side of
-        //   a square (or cubic) domain.
-        pp.get("n_cell",n_cell);
-
-        // The domain is broken into boxes of size max_grid_size
-        pp.get("max_grid_size",max_grid_size);
-
-        // Default plot_int to -1, allow us to set it to something else in the inputs file
-        //  If plot_int < 0 then no plot files will be writtenq
-        plot_int = -1;
-        pp.query("plot_int",plot_int);
-
-        // Default nsteps to 10, allow us to set it to something else in the inputs file
-        nsteps = 10;
-        pp.query("nsteps",nsteps);
-    }
-
-In ``main.cpp`` we demonstrate how to define a ``Box`` for the problem domain,
-and then how to chop that ``Box`` up into multiple boxes that define a
-``BoxArray``  We also define a ``Geometry`` object that knows about the problem
-domain, the physical coordinates of the box, and the periodicity:
-
-::
-
-    // make BoxArray and Geometry
-    BoxArray ba;
-    Geometry geom;
-    {
-        IntVect dom_lo(AMREX_D_DECL(       0,        0,        0));
-        IntVect dom_hi(AMREX_D_DECL(n_cell-1, n_cell-1, n_cell-1));
-        Box domain(dom_lo, dom_hi);
-
-        // Initialize the boxarray "ba" from the single box "domain"
-        ba.define(domain);
-        // Break up boxarray "ba" into chunks no larger than "max_grid_size" along a direction
-        ba.maxSize(max_grid_size);
-
-       // This defines the physical box, [-1,1] in each direction.
-        RealBox real_box({AMREX_D_DECL(-1.0,-1.0,-1.0)},
-                         {AMREX_D_DECL( 1.0, 1.0, 1.0)});
-
-        // periodic in all direction by default
-        Array<int,AMREX_SPACEDIM> is_periodic{AMREX_D_DECL(1,1,1)};
-
-        // This defines a Geometry object
-        geom.define(domain,real_box,CoordSys::cartesian,is_periodic);
-    }
-
-In ``main.cpp`` we demonstrate how to build a ``DistributionMapping`` from the
-``BoxArray``, and then build ``MultiFabs`` with a desired number of components
-and ghost cells associated with each grid:
-
-::
-
-    // Nghost = number of ghost cells for each array
-    int Nghost = 1;
-
-    // Ncomp = number of components for each array
-    int Ncomp  = 1;
-
-    // How Boxes are distributed among MPI processes
-    DistributionMapping dm(ba);
-
-    // we allocate two phi multifabs; one will store the old state, the other the new.
-    MultiFab phi_old(ba, dm, Ncomp, Nghost);
-    MultiFab phi_new(ba, dm, Ncomp, Nghost);
-
-We demonstrate how to build an array of face-based ``MultiFabs`` :
-
-::
-
-    // build the flux multifabs
-    Array<MultiFab, AMREX_SPACEDIM> flux;
-    for (int dir = 0; dir < AMREX_SPACEDIM; dir++)
-    {
-        // flux(dir) has one component, zero ghost cells, and is nodal in direction dir
-        BoxArray edge_ba = ba;
-        edge_ba.surroundingNodes(dir);
-        flux[dir].define(edge_ba, dm, 1, 0);
-    }
-
-To access and/or modify data in a ``MultiFab`` we use the ``MFIter``, where each
-processor loops over grids it owns to access and/or modify data on that grid:
-
-::
-
-    // Initialize phi_new by calling a Fortran routine.
-    // MFIter = MultiFab Iterator
-    for ( MFIter mfi(phi_new); mfi.isValid(); ++mfi )
-    {
-        const Box& vbx = mfi.validbox();
-        auto const& phiNew = phi_new.array(mfi);
-        amrex::ParallelFor(vbx,
-        [=] AMREX_GPU_DEVICE(int i, int j, int k)
-        {
-            init_phi(i,j,k,phiNew,dx,prob_lo);
-        });
-    }
-
-Note that the kernel function ``init_phi`` for initializing a single
-cell is is ``mykernel.H``.  It's marked with `AMREX_GPU_DEVICE` to
-make it a GPU device function, if it built with GPU support.  It's
-also marked with `AMREX_FORCE_INLINE` for inlining.
-
-Ghost cells are filled using the ``FillBoundary`` function:
-
-::
-
-    // Fill the ghost cells of each grid from the other grids
-    // includes periodic domain boundaries
-    phi_old.FillBoundary(geom.periodicity());
+Example Codes
+=============
+
+To assist users we have multiple example codes introducing AMReX functionality.
+They range from HelloWorld walk-thrus to stand-alone examples of complex
+features in practice. To access the available examples, please see
+`AMReX Guided Tutorials and Example Codes
+<https://amrex-codes.github.io/amrex/tutorials_html/>`_.

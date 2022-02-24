@@ -43,6 +43,16 @@ public:
     * from FabArray.
     */
     MultiFab () noexcept;
+
+    /**
+    * \brief Constructs an empty MultiFab.  Data can be defined at a later
+    * time using the define member functions inherited from FabArray.  If
+    * `define` is called later with a nulltpr as MFInfo's arena, the default
+    * Arena `a` will be used.  If the arena in MFInfo is not a nullptr, the
+    * MFInfo's arena will be used.
+    */
+    explicit MultiFab (Arena* a) noexcept;
+
     /**
     * \brief
     * Constructs a MultiFab
@@ -169,6 +179,13 @@ public:
     Real norm0 (const iMultiFab& mask, int comp = 0, int nghost = 0, bool local = false) const;
     Real norminf (const iMultiFab& mask, int comp = 0, int nghost = 0, bool local = false) const {
         return norm0(mask,comp,nghost,local);
+    }
+
+    Real norm0 (int comp, int ncomp, IntVect const& nghost, bool local = false,
+                bool ignore_covered = false) const;
+    Real norminf (int comp, int ncomp, IntVect const& nghost, bool local = false,
+                  bool ignore_covered = false) const {
+        return norm0(comp, ncomp, nghost, local, ignore_covered);
     }
 
     /**
@@ -658,6 +675,11 @@ public:
     void OverrideSync (const Periodicity& period = Periodicity::NonPeriodic());
     void OverrideSync (const iMultiFab& msk, const Periodicity& period = Periodicity::NonPeriodic());
 
+    void OverrideSync_nowait (const Periodicity& period = Periodicity::NonPeriodic());
+    void OverrideSync_nowait (const iMultiFab& msk, const Periodicity& period = Periodicity::NonPeriodic());
+    void OverrideSync_finish ();
+
+
     static void Initialize ();
     static void Finalize ();
 
@@ -677,6 +699,11 @@ inline void GccPlacaterMF ()
     std::allocator<MultiFab const*> a2;
     std::allocator<FabArray<FArrayBox>*> a3;
     std::allocator<FabArray<FArrayBox> const*> a4;
+
+    amrex::ignore_unused(a1);
+    amrex::ignore_unused(a2);
+    amrex::ignore_unused(a3);
+    amrex::ignore_unused(a4);
 }
 #endif
 

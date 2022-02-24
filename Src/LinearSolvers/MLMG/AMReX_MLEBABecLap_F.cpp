@@ -80,11 +80,11 @@ MLEBABecLap::Fapply (int amrlev, int mglev, MultiFab& out, const MultiFab& in) c
                 yfab(i,j,k,n) = 0.0;
             });
         } else if (fabtyp == FabType::regular) {
-            AMREX_LAUNCH_HOST_DEVICE_LAMBDA ( bx, tbx,
+            AMREX_HOST_DEVICE_PARALLEL_FOR_4D( bx, ncomp, i, j, k, n,
             {
-                mlabeclap_adotx(tbx, yfab, xfab, afab,
+                mlabeclap_adotx(i,j,k,n, yfab, xfab, afab,
                                 AMREX_D_DECL(bxfab,byfab,bzfab),
-                                dxinvarr, ascalar, bscalar, ncomp);
+                                dxinvarr, ascalar, bscalar);
             });
         } else {
             Array4<int const> const& ccmfab = ccmask.const_array(mfi);
@@ -110,6 +110,17 @@ MLEBABecLap::Fapply (int amrlev, int mglev, MultiFab& out, const MultiFab& in) c
             bool treat_phi_as_on_centroid = ( phi_on_centroid && (mglev == 0) );
 
             if (treat_phi_as_on_centroid) {
+#ifdef AMREX_USE_HIP
+                // This causes an abort in HIP 4.5 but works in earlier versions
+                // A follow-up release should fix this.
+                // Error message:
+                //   lld: error: ran out of registers during register allocation
+                amrex::Abort("MLEBABecLap::Fapply: phi on centroid not supported for HIP");
+                amrex::ignore_unused(AMREX_D_DECL(domlo_x, domlo_y, domlo_z),
+                                     AMREX_D_DECL(domhi_x, domhi_y, domhi_z),
+                                     AMREX_D_DECL(extdir_x, extdir_y, extdir_z));
+                amrex::ignore_unused(ccfab);
+#else
                AMREX_LAUNCH_HOST_DEVICE_LAMBDA ( bx, tbx,
                {
                    mlebabeclap_adotx_centroid(tbx, yfab, xfab, afab, AMREX_D_DECL(bxfab,byfab,bzfab),
@@ -123,6 +134,7 @@ MLEBABecLap::Fapply (int amrlev, int mglev, MultiFab& out, const MultiFab& in) c
                                      is_eb_dirichlet, is_eb_inhomog, dxinvarr,
                                      ascalar, bscalar, ncomp);
                });
+#endif
             } else {
                AMREX_LAUNCH_HOST_DEVICE_LAMBDA ( bx, tbx,
                {
@@ -248,16 +260,16 @@ MLEBABecLap::Fsmooth (int amrlev, int mglev, MultiFab& sol, const MultiFab& rhs,
         }
         else if (fabtyp == FabType::regular)
         {
-            AMREX_LAUNCH_HOST_DEVICE_LAMBDA ( vbx, thread_box,
+            AMREX_HOST_DEVICE_PARALLEL_FOR_4D(vbx, nc, i, j, k, n,
             {
-                abec_gsrb(thread_box, solnfab, rhsfab, alpha, afab,
+                abec_gsrb(i,j,k,n, solnfab, rhsfab, alpha, afab,
                           AMREX_D_DECL(dhx, dhy, dhz),
                           AMREX_D_DECL(bxfab, byfab, bzfab),
                           AMREX_D_DECL(m0,m2,m4),
                           AMREX_D_DECL(m1,m3,m5),
                           AMREX_D_DECL(f0fab,f2fab,f4fab),
                           AMREX_D_DECL(f1fab,f3fab,f5fab),
-                          vbx, redblack, nc);
+                          vbx, redblack);
             });
         }
         else

@@ -4,32 +4,16 @@ template <int NStructReal, int NStructInt, int NArrayReal, int NArrayInt,
 void
 ParticleContainer<NStructReal, NStructInt, NArrayReal, NArrayInt, Allocator>::SetParticleSize ()
 {
-    if (NumRealComps() > 0 || NumIntComps() > 0) {
-        if (NumRealComps() > 0) {
-            d_communicate_real_comp.resize(NumRealComps());
-            Gpu::copyAsync(Gpu::hostToDevice,
-                           h_communicate_real_comp.begin(),
-                           h_communicate_real_comp.end(),
-                           d_communicate_real_comp.begin());
-        }
-        if (NumIntComps() > 0) {
-            d_communicate_int_comp.resize(NumIntComps());
-            Gpu::copyAsync(Gpu::hostToDevice,
-                           h_communicate_int_comp.begin(),
-                           h_communicate_int_comp.end(),
-                           d_communicate_int_comp.begin());
-        }
-        Gpu::synchronize();
-    }
-
-    num_real_comm_comps = 0;
-    for (int i = 0; i < NumRealComps(); ++i) {
-        if (h_communicate_real_comp[i]) ++num_real_comm_comps;
+    num_real_comm_comps  = 0;
+    int comm_comps_start = AMREX_SPACEDIM + NStructReal;
+    for (int i = comm_comps_start; i < comm_comps_start + NumRealComps(); ++i) {
+        if (h_redistribute_real_comp[i]) {++num_real_comm_comps;}
     }
 
     num_int_comm_comps = 0;
-    for (int i = 0; i < NumIntComps(); ++i) {
-        if (h_communicate_int_comp[i]) ++num_int_comm_comps;
+    comm_comps_start   = 2 + NStructInt;
+    for (int i = comm_comps_start; i < comm_comps_start + NumIntComps(); ++i) {
+        if (h_redistribute_int_comp[i]) {++num_int_comm_comps;}
     }
 
     particle_size = sizeof(ParticleType);
@@ -55,7 +39,7 @@ ParticleContainer<NStructReal, NStructInt, NArrayReal, NArrayInt, Allocator> :: 
                       "sizeof ParticleType is not a multiple of sizeof RealType");
 
         ParmParse pp("particles");
-        pp.query("do_tiling", do_tiling);
+        pp.queryAdd("do_tiling", do_tiling);
         Vector<int> tilesize(AMREX_SPACEDIM);
         if (pp.queryarr("tile_size", tilesize, 0, AMREX_SPACEDIM)) {
             for (int i=0; i<AMREX_SPACEDIM; ++i) tile_size[i] = tilesize[i];
@@ -66,8 +50,9 @@ ParticleContainer<NStructReal, NStructInt, NArrayReal, NArrayInt, Allocator> :: 
         //                   && std::is_trivial<ParticleType>::value,
         //                      "Particle type must be standard layout and trivial.");
 
-        pp.query("use_prepost", usePrePost);
-        pp.query("do_unlink", doUnlink);
+        pp.queryAdd("use_prepost", usePrePost);
+        pp.queryAdd("do_unlink", doUnlink);
+        pp.queryAdd("do_mem_efficient_sort", memEfficientSort);
 
         initialized = true;
     }
@@ -1063,19 +1048,19 @@ template <int NStructReal, int NStructInt, int NArrayReal, int NArrayInt,
           template<class> class Allocator>
 void
 ParticleContainer<NStructReal, NStructInt, NArrayReal, NArrayInt, Allocator>
-::Redistribute (int lev_min, int lev_max, int nGrow, int local)
+::Redistribute (int lev_min, int lev_max, int nGrow, int local, bool remove_negative)
 {
 #ifdef AMREX_USE_GPU
     if ( Gpu::inLaunchRegion() )
     {
-        RedistributeGPU(lev_min, lev_max, nGrow, local);
+        RedistributeGPU(lev_min, lev_max, nGrow, local, remove_negative);
     }
     else
     {
-        RedistributeCPU(lev_min, lev_max, nGrow, local);
+        RedistributeCPU(lev_min, lev_max, nGrow, local, remove_negative);
     }
 #else
-    RedistributeCPU(lev_min, lev_max, nGrow, local);
+    RedistributeCPU(lev_min, lev_max, nGrow, local, remove_negative);
 #endif
 }
 
@@ -1110,18 +1095,62 @@ ParticleContainer<NStructReal, NStructInt, NArrayReal, NArrayInt, Allocator>::So
             const size_t np = aos.numParticles();
             auto pstruct_ptr = aos().dataPtr();
 
-            ParticleTileType ptile_tmp;
-            ptile_tmp.define(m_num_runtime_real, m_num_runtime_int);
-            ptile_tmp.resize(np);
-
             const Box& box = mfi.validbox();
 
             int ntiles = numTilesInBox(box, true, bin_size);
 
             m_bins.build(np, pstruct_ptr, ntiles, GetParticleBin{plo, dxi, domain, bin_size, box});
+            auto inds = m_bins.permutationPtr();
 
-            gatherParticles(ptile_tmp, ptile, np, m_bins.permutationPtr());
-            ptile.swap(ptile_tmp);
+            if (memEfficientSort) {
+                {
+                    ParticleVector tmp_particles(np);
+                    auto src = ptile.getParticleTileData();
+                    ParticleType* dst = tmp_particles.data();
+
+                    AMREX_HOST_DEVICE_FOR_1D( np, i,
+                    {
+                        dst[i] = src.m_aos[inds[i]];
+                    });
+
+                    Gpu::synchronize();
+                    ptile.GetArrayOfStructs()().swap(tmp_particles);
+                }
+
+                RealVector tmp_real(np);
+                for (int comp = 0; comp < NArrayReal + m_num_runtime_real; ++comp) {
+                    auto src = ptile.GetStructOfArrays().GetRealData(comp).data();
+                    ParticleReal* dst = tmp_real.data();
+                    AMREX_HOST_DEVICE_FOR_1D( np, i,
+                    {
+                        dst[i] = src[inds[i]];
+                    });
+
+                    Gpu::synchronize();
+
+                    ptile.GetStructOfArrays().GetRealData(comp).swap(tmp_real);
+                }
+
+                IntVector tmp_int(np);
+                for (int comp = 0; comp < NArrayInt + m_num_runtime_int; ++comp) {
+                    auto src = ptile.GetStructOfArrays().GetIntData(comp).data();
+                    int* dst = tmp_int.data();
+                    AMREX_HOST_DEVICE_FOR_1D( np, i,
+                    {
+                        dst[i] = src[inds[i]];
+                    });
+
+                    Gpu::synchronize();
+
+                    ptile.GetStructOfArrays().GetIntData(comp).swap(tmp_int);
+                }
+            } else {
+                ParticleTileType ptile_tmp;
+                ptile_tmp.define(m_num_runtime_real, m_num_runtime_int);
+                ptile_tmp.resize(np);
+                gatherParticles(ptile_tmp, ptile, np, m_bins.permutationPtr());
+                ptile.swap(ptile_tmp);
+            }
         }
     }
 }
@@ -1133,7 +1162,7 @@ template <int NStructReal, int NStructInt, int NArrayReal, int NArrayInt,
           template<class> class Allocator>
 void
 ParticleContainer<NStructReal, NStructInt, NArrayReal, NArrayInt, Allocator>
-::RedistributeGPU (int lev_min, int lev_max, int nGrow, int local)
+::RedistributeGPU (int lev_min, int lev_max, int nGrow, int local, bool remove_negative)
 {
 #ifdef AMREX_USE_GPU
 
@@ -1183,7 +1212,7 @@ ParticleContainer<NStructReal, NStructInt, NArrayReal, NArrayInt, Allocator>
 
             int num_stay = partitionParticlesByDest(src_tile, assign_grid, BufferMap(),
                                                     geom, lev, gid, tid,
-                                                    lev_min, lev_max, nGrow);
+                                                    lev_min, lev_max, nGrow, remove_negative);
 
             int num_move = np - num_stay;
             new_sizes[lev][gid] = num_stay;
@@ -1218,7 +1247,8 @@ ParticleContainer<NStructReal, NStructInt, NArrayReal, NArrayInt, Allocator>
 
     ParticleCopyPlan plan;
 
-    plan.build(*this, op, local);
+    plan.build(*this, op, h_redistribute_int_comp,
+               h_redistribute_real_comp, local);
 
     Gpu::DeviceVector<char> snd_buffer;
     Gpu::DeviceVector<char> rcv_buffer;
@@ -1272,7 +1302,7 @@ ParticleContainer<NStructReal, NStructInt, NArrayReal, NArrayInt, Allocator>
     Gpu::Device::synchronize();
     AMREX_ASSERT(numParticlesOutOfRange(*this, lev_min, lev_max, nGrow) == 0);
 #else
-    amrex::ignore_unused(lev_min,lev_max,nGrow,local);
+    amrex::ignore_unused(lev_min,lev_max,nGrow,local,remove_negative);
 #endif
 }
 
@@ -1283,7 +1313,7 @@ template <int NStructReal, int NStructInt, int NArrayReal, int NArrayInt,
           template<class> class Allocator>
 void
 ParticleContainer<NStructReal, NStructInt, NArrayReal, NArrayInt, Allocator>
-::RedistributeCPU (int lev_min, int lev_max, int nGrow, int local)
+::RedistributeCPU (int lev_min, int lev_max, int nGrow, int local, bool remove_negative)
 {
   BL_PROFILE("ParticleContainer::RedistributeCPU()");
 
@@ -1390,6 +1420,11 @@ ParticleContainer<NStructReal, NStructInt, NArrayReal, NArrayInt, Allocator>
               while (pindex <= last) {
                   ParticleType& p = aos[pindex];
 
+                  if ((remove_negative == false) && (p.id() < 0)) {
+                      ++pindex;
+                      continue;
+                  }
+
                   if (p.id() < 0)
                   {
                       aos[pindex] = aos[last];
@@ -1444,14 +1479,16 @@ ParticleContainer<NStructReal, NStructInt, NArrayReal, NArrayInt, Allocator>
                       particles_to_send.resize(new_size);
                       std::memcpy(&particles_to_send[old_size], &p, particle_size);
                       char* dst = &particles_to_send[old_size] + particle_size;
+                      int array_comp_start = AMREX_SPACEDIM + NStructReal;
                       for (int comp = 0; comp < NumRealComps(); comp++) {
-                          if (h_communicate_real_comp[comp]) {
+                          if (h_redistribute_real_comp[array_comp_start + comp]) {
                               std::memcpy(dst, &soa.GetRealData(comp)[pindex], sizeof(ParticleReal));
                               dst += sizeof(ParticleReal);
                           }
                       }
+                      array_comp_start = 2 + NStructInt;
                       for (int comp = 0; comp < NumIntComps(); comp++) {
-                          if (h_communicate_int_comp[comp]) {
+                          if (h_redistribute_int_comp[array_comp_start + comp]) {
                               std::memcpy(dst, &soa.GetIntData(comp)[pindex], sizeof(int));
                               dst += sizeof(int);
                           }
@@ -1764,8 +1801,9 @@ RedistributeMPI (std::map<int, Vector<char> >& not_ours,
                 std::memcpy(&p, pbuf, sizeof(ParticleType));
                 pbuf += sizeof(ParticleType);
                 ptile.push_back(p);
+                int array_comp_start = AMREX_SPACEDIM + NStructReal;
                 for (int comp = 0; comp < NumRealComps(); ++comp) {
-                    if (h_communicate_real_comp[comp]) {
+                    if (h_redistribute_real_comp[array_comp_start + comp]) {
                         ParticleReal rdata;
                         std::memcpy(&rdata, pbuf, sizeof(ParticleReal));
                         pbuf += sizeof(ParticleReal);
@@ -1775,8 +1813,9 @@ RedistributeMPI (std::map<int, Vector<char> >& not_ours,
                     }
                 }
 
+                array_comp_start = 2 + NStructInt;
                 for (int comp = 0; comp < NumIntComps(); ++comp) {
-                    if (h_communicate_int_comp[comp]) {
+                    if (h_redistribute_int_comp[array_comp_start + comp]) {
                         int idata;
                         std::memcpy(&idata, pbuf, sizeof(int));
                         pbuf += sizeof(int);
@@ -1827,8 +1866,9 @@ RedistributeMPI (std::map<int, Vector<char> >& not_ours,
                 host_particles[lev][ind].push_back(p);
 
                 // add the real...
+                int array_comp_start = AMREX_SPACEDIM + NStructReal;
                 for (int comp = 0; comp < NumRealComps(); ++comp) {
-                    if (h_communicate_real_comp[comp]) {
+                    if (h_redistribute_real_comp[array_comp_start + comp]) {
                         Real rdata;
                         std::memcpy(&rdata, pbuf, sizeof(Real));
                         pbuf += sizeof(Real);
@@ -1839,8 +1879,9 @@ RedistributeMPI (std::map<int, Vector<char> >& not_ours,
                 }
 
                 // ... and int array data
+                array_comp_start = 2 + NStructInt;
                 for (int comp = 0; comp < NumIntComps(); ++comp) {
-                    if (h_communicate_int_comp[comp]) {
+                    if (h_redistribute_int_comp[array_comp_start + comp]) {
                         int idata;
                         std::memcpy(&idata, pbuf, sizeof(int));
                         pbuf += sizeof(int);

@@ -58,6 +58,39 @@ public:
                          RunOn            gpu_or_cpu) = 0;
 
     /**
+    * \brief Coarse to fine interpolation in space for face-based data.
+    *
+    * \param crse
+    * \param crse_comp
+    * \param fine
+    * \param fine_comp
+    * \param ncomp
+    * \param fine_region
+    * \param fine_values
+    * \param fine_known
+    * \param ratio
+    * \param crse_geom
+    * \param fine_geom
+    * \param bcr
+    * \param bccomp
+    * \param runon
+    */
+    virtual void interp_face (const FArrayBox& /*crse*/,
+                              const int        /*crse_comp*/,
+                              FArrayBox&       /*fine*/,
+                              const int        /*fine_comp*/,
+                              const int        /*ncomp*/,
+                              const Box&       /*fine_region*/,
+                              const IntVect&   /*ratio*/,
+                              const IArrayBox& /*solve_mask*/,
+                              const Geometry&  /*crse_geom*/,
+                              const Geometry&  /*fine_geom*/,
+                              Vector<BCRec> const & /*bcr*/,
+                              const int        /*bccomp*/,
+                              RunOn            /*gpu_or_cpu*/)
+    { amrex::Abort("The version of this Interpolater for face-based data is not implemented or does not apply. Call 'interp' instead."); }
+
+    /**
     * \brief Coarse to fine interpolation in space.
     *        Takes an Array of FArrayBox*s
     *
@@ -325,7 +358,6 @@ protected:
 };
 
 
-#ifndef BL_NO_FORT
 /**
 * \brief Lin. cons. interp. on cc data with protection against under/over-shoots.
 *
@@ -379,10 +411,8 @@ public:
                           Vector<BCRec>&   bcr,
                           RunOn            gpu_or_cpu) override;
 };
-#endif
 
 
-#ifndef BL_NO_FORT
 /**
 * \brief Quadratic interpolation on cell centered data.
 *
@@ -456,7 +486,6 @@ private:
 
     bool  do_limited_slope;
 };
-#endif
 
 
 /**
@@ -522,7 +551,6 @@ public:
 };
 
 
-#ifndef BL_NO_FORT
 /**
 * \brief Conservative quartic interpolation on cell averaged data.
 *
@@ -588,7 +616,6 @@ public:
                          int              actual_state,
                          RunOn            gpu_or_cpu) override;
 };
-#endif
 
 /**
 * \brief Divergence-free interpolation on face centered data.
@@ -752,7 +779,38 @@ public:
                          int              actual_state,
                          RunOn            gpu_or_cpu) override;
 
-/**
+    /**
+    * \brief Coarse to fine interpolation in space for face-based data.
+    *
+    * \param crse
+    * \param crse_comp
+    * \param fine
+    * \param fine_comp
+    * \param ncomp
+    * \param fine_region
+    * \param ratio
+    * \param solve_mask
+    * \param crse_geom
+    * \param fine_geom
+    * \param bcr
+    * \param bccomp
+    * \param runon
+    */
+    virtual void interp_face (const FArrayBox& crse,
+                              const int        crse_comp,
+                              FArrayBox&       fine,
+                              const int        fine_comp,
+                              const int        ncomp,
+                              const Box&       fine_region,
+                              const IntVect&   ratio,
+                              const IArrayBox& solve_mask,
+                              const Geometry&  crse_geom,
+                              const Geometry&  fine_geom,
+                              Vector<BCRec> const & bcr,
+                              const int        bccomp,
+                              RunOn            gpu_or_cpu) override;
+
+    /**
     * \brief Coarse to fine interpolation in space.
     *
     * \param crse
@@ -761,8 +819,6 @@ public:
     * \param fine_comp
     * \param ncomp
     * \param fine_region
-    * \param fine_values
-    * \param fine_known
     * \param ratio
     * \param crse_geom
     * \param fine_geom
@@ -777,7 +833,7 @@ public:
                              const int         ncomp,
                              const Box&        fine_region,
                              const IntVect&    ratio,
-                             Array<IArrayBox*, AMREX_SPACEDIM> const& /*solve_mask*/,
+                             Array<IArrayBox*, AMREX_SPACEDIM> const& solve_mask,
                              const Geometry&   /*crse_geom*/,
                              const Geometry&   /*fine_geom*/,
                              Vector<Array<BCRec, AMREX_SPACEDIM> > const& /*bcr*/,
@@ -797,12 +853,9 @@ extern AMREX_EXPORT FaceLinear                face_linear_interp;
 extern AMREX_EXPORT CellConservativeLinear    lincc_interp;
 extern AMREX_EXPORT CellConservativeLinear    cell_cons_interp;
 extern AMREX_EXPORT CellBilinear              cell_bilinear_interp;
-
-#ifndef BL_NO_FORT
-extern AMREX_EXPORT CellQuadratic             quadratic_interp;
 extern AMREX_EXPORT CellConservativeProtected protected_interp;
 extern AMREX_EXPORT CellConservativeQuartic   quartic_interp;
-#endif
+extern AMREX_EXPORT CellQuadratic             quadratic_interp;
 
 }
 

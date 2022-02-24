@@ -2,12 +2,13 @@ name: hip
 
 on: [push, pull_request]
 
+concurrency:
+  group: ${{ github.ref }}-${{ github.head_ref }}-hip
+  cancel-in-progress: true
+
 jobs:
-  # MPI_C is broken since HIP 4.1
-  # https://gitlab.kitware.com/cmake/cmake/-/issues/21968
-  # https://github.com/ROCm-Developer-Tools/HIP/issues/2246
   tests-hip:
-    name: HIP ROCm GFortran@9.3 C++17 [tests]
+    name: HIP ROCm Flang C++17 [tests]
     runs-on: ubuntu-20.04
     # Have to have -Wno-deprecated-declarations due to deprecated atomicAddNoRet
     # Have to have -Wno-gnu-zero-variadic-macro-arguments to avoid
@@ -30,20 +31,27 @@ jobs:
         hipcc --version
         which clang
         which clang++
+        which flang
 
-        cmake -S . -B build_nofortran                     \
+        # "mpic++ --showme" forgets open-pal in Ubuntu 20.04 + OpenMPI 4.0.3
+        #   https://bugs.launchpad.net/ubuntu/+source/openmpi/+bug/1941786
+        #   https://github.com/open-mpi/ompi/issues/9317
+        export LDFLAGS="-lopen-pal"
+
+        cmake -S . -B build                               \
             -DCMAKE_VERBOSE_MAKEFILE=ON                   \
             -DAMReX_EB=ON                                 \
             -DAMReX_ENABLE_TESTS=ON                       \
             -DAMReX_PARTICLES=ON                          \
-            -DAMReX_FORTRAN=OFF                           \
+            -DAMReX_FORTRAN=ON                            \
             -DAMReX_LINEAR_SOLVERS=ON                     \
             -DAMReX_GPU_BACKEND=HIP                       \
             -DAMReX_AMD_ARCH=gfx908                       \
             -DCMAKE_C_COMPILER=$(which clang)             \
             -DCMAKE_CXX_COMPILER=$(which clang++)         \
+            -DCMAKE_Fortran_COMPILER=$(which flang)       \
             -DCMAKE_CXX_STANDARD=17
-        cmake --build build_nofortran -j 2
+        cmake --build build -j 2
 
   tests-hip-wrapper:
     name: HIP ROCm GFortran@9.3 C++17 [tests-hipcc]
@@ -67,6 +75,12 @@ jobs:
       run: |
         source /etc/profile.d/rocm.sh
         hipcc --version
+
+        # "mpic++ --showme" forgets open-pal in Ubuntu 20.04 + OpenMPI 4.0.3
+        #   https://bugs.launchpad.net/ubuntu/+source/openmpi/+bug/1941786
+        #   https://github.com/open-mpi/ompi/issues/9317
+        export LDFLAGS="-lopen-pal"
+
         cmake -S . -B build_full_legacywrapper            \
             -DCMAKE_VERBOSE_MAKEFILE=ON                   \
             -DAMReX_EB=OFF                                \
@@ -79,9 +93,6 @@ jobs:
             -DAMReX_AMD_ARCH=gfx908                       \
             -DCMAKE_C_COMPILER=$(which clang)             \
             -DCMAKE_CXX_COMPILER=$(which hipcc)           \
-            -DCMAKE_CXX_COMPILER_ID="Clang"               \
-            -DCMAKE_CXX_COMPILER_VERSION=12.0             \
-            -DCMAKE_CXX_STANDARD_COMPUTED_DEFAULT="17"    \
             -DCMAKE_Fortran_COMPILER=$(which gfortran)    \
             -DCMAKE_CXX_STANDARD=17
         cmake --build build_full_legacywrapper -j 2
