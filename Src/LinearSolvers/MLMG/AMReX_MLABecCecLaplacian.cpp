@@ -3,6 +3,7 @@
 #include <AMReX_MultiFabUtil.H>
 
 #include <AMReX_MLABecCecLap_K.H>
+#include <AMReX_Slopes_K.H>
 
 namespace amrex {
 
@@ -176,6 +177,12 @@ void
 MLABecCecLaplacian::setRelaxation (Real omega) noexcept
 {
    m_omega = omega;
+}
+
+void
+MLABecCecLaplacian::setUWOrder (int uw_order) noexcept
+{
+   m_uw_order = uw_order;
 }
 
 void
@@ -438,6 +445,8 @@ MLABecCecLaplacian::prepareForSolve ()
 void
 MLABecCecLaplacian::Fapply (int amrlev, int mglev, MultiFab& out, const MultiFab& in) const
 {
+  
+    // FIXME: make second order
     BL_PROFILE("MLABecCecLaplacian::Fapply()");
 
     const MultiFab& acoef = m_a_coeffs[amrlev][mglev];
@@ -449,6 +458,7 @@ MLABecCecLaplacian::Fapply (int amrlev, int mglev, MultiFab& out, const MultiFab
                  const MultiFab& czcoef = m_c_coeffs[amrlev][mglev][2];);
 
     const auto dxinv = m_geom[amrlev][mglev].InvCellSizeArray();
+    const Box& domain = m_geom[amrlev][mglev].Domain();
 
     const Real ascalar = m_a_scalar;
     const Real bscalar = m_b_scalar;
@@ -477,14 +487,14 @@ MLABecCecLaplacian::Fapply (int amrlev, int mglev, MultiFab& out, const MultiFab
             {
                 mlabecceclap_adotx_os(tbx, yfab, xfab, afab, AMREX_D_DECL(bxfab,byfab,bzfab),
                                       AMREX_D_DECL(cxfab,cyfab,czfab), osm, dxinv, 
-                                      ascalar, bscalar, cscalar, ncomp);
+                                      ascalar, bscalar, cscalar, ncomp, m_uw_order);
             });
         } else {
             AMREX_LAUNCH_HOST_DEVICE_LAMBDA ( bx, tbx,
             {
                 mlabecceclap_adotx(tbx, yfab, xfab, afab, AMREX_D_DECL(bxfab,byfab,bzfab),
                                    AMREX_D_DECL(cxfab,cyfab,czfab), dxinv, 
-                                   ascalar, bscalar, cscalar, ncomp);
+                                   ascalar, bscalar, cscalar, ncomp, m_uw_order);
             });
         }
     }
@@ -493,6 +503,7 @@ MLABecCecLaplacian::Fapply (int amrlev, int mglev, MultiFab& out, const MultiFab
 void
 MLABecCecLaplacian::normalize (int amrlev, int mglev, MultiFab& mf) const
 {
+    // FIXME: make second order
     BL_PROFILE("MLABecCecLaplacian::normalize()");
 
     const MultiFab& acoef = m_a_coeffs[amrlev][mglev];
@@ -530,7 +541,7 @@ MLABecCecLaplacian::normalize (int amrlev, int mglev, MultiFab& mf) const
         {
             mlabecceclap_normalize(tbx, fab, afab, AMREX_D_DECL(bxfab,byfab,bzfab),
                                    AMREX_D_DECL(cxfab,cyfab,czfab), dxinv, 
-                                   ascalar, bscalar, cscalar, ncomp);
+                                   ascalar, bscalar, cscalar, ncomp, m_uw_order);
         });
     }
 }
@@ -538,6 +549,7 @@ MLABecCecLaplacian::normalize (int amrlev, int mglev, MultiFab& mf) const
 void
 MLABecCecLaplacian::Fsmooth (int amrlev, int mglev, MultiFab& sol, const MultiFab& rhs, int redblack) const
 {
+    // FIXME: make second order
     BL_PROFILE("MLABecCecLaplacian::Fsmooth()");
 
     bool regular_coarsening = true;
@@ -662,7 +674,7 @@ MLABecCecLaplacian::Fsmooth (int amrlev, int mglev, MultiFab& sol, const MultiFa
                                 AMREX_D_DECL(m1,m3,m5),
                                 AMREX_D_DECL(dp[0],dp[2],dp[4]),
                                 AMREX_D_DECL(dp[1],dp[3],dp[5]),
-                                osm, vbx, redblack, nc);
+                                osm, vbx, redblack, nc, m_uw_order);
             });
         } else if (regular_coarsening) {
             AMREX_LAUNCH_HOST_DEVICE_LAMBDA ( tbx, thread_box,
@@ -676,7 +688,7 @@ MLABecCecLaplacian::Fsmooth (int amrlev, int mglev, MultiFab& sol, const MultiFa
                              AMREX_D_DECL(m1,m3,m5),
                              AMREX_D_DECL(dp[0],dp[2],dp[4]),
                              AMREX_D_DECL(dp[1],dp[3],dp[5]),
-                             vbx, redblack, nc);
+                             vbx, redblack, nc, m_uw_order);
             });
         } else {
             Abort("Line GS not available for ABecCecLap");
@@ -695,7 +707,7 @@ MLABecCecLaplacian::Fsmooth (int amrlev, int mglev, MultiFab& sol, const MultiFa
                                 AMREX_D_DECL(m1,m3,m5),
                                 AMREX_D_DECL(f0fab,f2fab,f4fab),
                                 AMREX_D_DECL(f1fab,f3fab,f5fab),
-                                osm, vbx, redblack, nc);
+                                osm, vbx, redblack, nc, m_uw_order);
             });
         } else if (regular_coarsening) {
             AMREX_LAUNCH_HOST_DEVICE_LAMBDA ( tbx, thread_box,
@@ -709,7 +721,7 @@ MLABecCecLaplacian::Fsmooth (int amrlev, int mglev, MultiFab& sol, const MultiFa
                              AMREX_D_DECL(m1,m3,m5),
                              AMREX_D_DECL(f0fab,f2fab,f4fab),
                              AMREX_D_DECL(f1fab,f3fab,f5fab),
-                             vbx, redblack, nc);
+                             vbx, redblack, nc, m_uw_order);
             });
         } else {
             Abort("Line GS not available for ABecCecLap");
@@ -766,7 +778,7 @@ MLABecCecLaplacian::checkDiagonalDominance (int amrlev, int mglev)
                             AMREX_D_DECL(dhx, dhy, dhz),
                             AMREX_D_DECL(bxfab, byfab, bzfab),
                             AMREX_D_DECL(cxfab, cyfab, czfab),
-                            nc);
+                            nc, m_uw_order);
         });
     }
 }
@@ -891,6 +903,7 @@ MLABecCecLaplacian::FFlux (int amrlev, const MFIter& mfi,
                            const Array<FArrayBox*,AMREX_SPACEDIM>& flux,
                            const FArrayBox& sol, Location, const int face_only) const
 {
+    // FIXME: make second order
     BL_PROFILE("MLABecCecLaplacian::FFlux()");
 
     const int mglev = 0;
@@ -904,7 +917,7 @@ MLABecCecLaplacian::FFlux (int amrlev, const MFIter& mfi,
           Array<FArrayBox const*,AMREX_SPACEDIM>{{AMREX_D_DECL(&(m_c_coeffs[amrlev][mglev][0][mfi]),
                                                                &(m_c_coeffs[amrlev][mglev][1][mfi]),
                                                                &(m_c_coeffs[amrlev][mglev][2][mfi]))}},
-          flux, sol, face_only, ncomp);
+          flux, sol, face_only, ncomp, m_uw_order);
 }
 
 void
@@ -912,8 +925,10 @@ MLABecCecLaplacian::FFlux (Box const& box, Real const* dxinv, Real bscalar, Real
                            Array<FArrayBox const*, AMREX_SPACEDIM> const& bcoef,
                            Array<FArrayBox const*, AMREX_SPACEDIM> const& ccoef,
                            Array<FArrayBox*,AMREX_SPACEDIM> const& flux,
-                           FArrayBox const& sol, int face_only, int ncomp)
+                           FArrayBox const& sol, int face_only, int ncomp, int const uw_order)
 {
+    // FIXME: make second order
+
     AMREX_D_TERM(const auto bx = bcoef[0]->array();,
                  const auto by = bcoef[1]->array();,
                  const auto bz = bcoef[2]->array(););
@@ -933,7 +948,7 @@ MLABecCecLaplacian::FFlux (Box const& box, Real const* dxinv, Real bscalar, Real
         int blen = box.length(0);
         AMREX_LAUNCH_HOST_DEVICE_LAMBDA ( blo, tbox,
         {
-            mlabecceclap_flux_xface(tbox, fxarr, solarr, bx, cx, fac, facc, blen, ncomp);
+            mlabecceclap_flux_xface(tbox, fxarr, solarr, bx, cx, fac, facc, blen, ncomp, uw_order);
         });
 #if (AMREX_SPACEDIM >= 2)
         fac = bscalar*dxinv[1];
@@ -941,7 +956,7 @@ MLABecCecLaplacian::FFlux (Box const& box, Real const* dxinv, Real bscalar, Real
         blen = box.length(1);
         AMREX_LAUNCH_HOST_DEVICE_LAMBDA ( blo, tbox,
         {
-            mlabecceclap_flux_yface(tbox, fyarr, solarr, by, cy, fac, facc, blen, ncomp);
+            mlabecceclap_flux_yface(tbox, fyarr, solarr, by, cy, fac, facc, blen, ncomp, uw_order);
         });
 #endif
 #if (AMREX_SPACEDIM == 3)
@@ -950,7 +965,7 @@ MLABecCecLaplacian::FFlux (Box const& box, Real const* dxinv, Real bscalar, Real
         blen = box.length(2);
         AMREX_LAUNCH_HOST_DEVICE_LAMBDA ( blo, tbox,
         {
-            mlabecceclap_flux_zface(tbox, fzarr, solarr, bz, cz, fac, facc, blen, ncomp);
+            mlabecceclap_flux_zface(tbox, fzarr, solarr, bz, cz, fac, facc, blen, ncomp, uw_order);
         });
 #endif
     }
@@ -961,14 +976,14 @@ MLABecCecLaplacian::FFlux (Box const& box, Real const* dxinv, Real bscalar, Real
         Box bflux = amrex::surroundingNodes(box, 0);
         AMREX_LAUNCH_HOST_DEVICE_LAMBDA ( bflux, tbox,
         {
-            mlabecceclap_flux_x(tbox, fxarr, solarr, bx, cx, fac, facc, ncomp);
+            mlabecceclap_flux_x(tbox, fxarr, solarr, bx, cx, fac, facc, ncomp, uw_order);
         });
 #if (AMREX_SPACEDIM >= 2)
         fac = bscalar*dxinv[1];
         bflux = amrex::surroundingNodes(box, 1);
         AMREX_LAUNCH_HOST_DEVICE_LAMBDA ( bflux, tbox,
         {
-            mlabecceclap_flux_y(tbox, fyarr, solarr, by, cy, fac, facc, ncomp);
+            mlabecceclap_flux_y(tbox, fyarr, solarr, by, cy, fac, facc, ncomp, uw_order);
         });
 #endif
 #if (AMREX_SPACEDIM == 3)
@@ -976,7 +991,7 @@ MLABecCecLaplacian::FFlux (Box const& box, Real const* dxinv, Real bscalar, Real
         bflux = amrex::surroundingNodes(box, 2);
         AMREX_LAUNCH_HOST_DEVICE_LAMBDA ( bflux, tbox,
         {
-            mlabecceclap_flux_z(tbox, fzarr, solarr, bz, cz, fac, facc, ncomp);
+            mlabecceclap_flux_z(tbox, fzarr, solarr, bz, cz, fac, facc, ncomp, uw_order);
         });
 #endif
     }

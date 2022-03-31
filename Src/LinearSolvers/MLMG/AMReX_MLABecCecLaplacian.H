@@ -48,6 +48,7 @@ public:
 
     void setScalars (Real a, Real b, Real c) noexcept;
     void setRelaxation (Real omega) noexcept;
+    void setUWOrder (int uw_order) noexcept;
     void setACoeffs (int amrlev, const MultiFab& alpha);
     void setACoeffs (int amrlev, Real alpha);
     void setBCoeffs (int amrlev, const Array<MultiFab const*,AMREX_SPACEDIM>& beta);
@@ -105,7 +106,7 @@ public:
                        Array<FArrayBox const*, AMREX_SPACEDIM> const& bcoef,
                        Array<FArrayBox const*, AMREX_SPACEDIM> const& ccoef,
                        Array<FArrayBox*,AMREX_SPACEDIM> const& flux,
-                       FArrayBox const& sol, int face_only, int ncomp);
+                       FArrayBox const& sol, int face_only, int ncomp, int const uw_order);
 
 protected:
 
@@ -122,6 +123,8 @@ protected:
     Vector<Vector<std::unique_ptr<iMultiFab> > > m_overset_mask;
 
     Vector<int> m_is_singular;
+  
+    int m_uw_order = 1;
 };
 
 }
