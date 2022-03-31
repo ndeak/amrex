@@ -78,8 +78,14 @@ public :
     void setGaussSeidel (bool flag) noexcept { m_use_gauss_seidel = flag; }
     void setHarmonicAverage (bool flag) noexcept { m_use_harmonic_average = flag; }
 
+    void setMapped (bool flag) noexcept { m_use_mapped = flag; }
+
     void setCoarseningStrategy (CoarseningStrategy cs) noexcept {
         if (m_const_sigma == Real(0.0)) m_coarsening_strategy = cs;
+    }
+
+    void setSmoothNumSweeps (int nsweeps) noexcept {
+        m_smooth_num_sweeps = nsweeps;
     }
 
     virtual BottomSolver getDefaultBottomSolver () const final override {
@@ -160,6 +166,10 @@ public :
                           Real* const rhs, Array4<Real const> const& bfab) const override;
 #endif
 
+protected:
+
+    virtual void resizeMultiGrid (int new_size) override final;
+
 private:
 
     int m_is_rz = 0;
@@ -167,6 +177,7 @@ private:
     Real m_const_sigma = Real(0.0);
     Vector<Vector<Array<std::unique_ptr<MultiFab>,AMREX_SPACEDIM> > > m_sigma;
     Vector<Vector<std::unique_ptr<MultiFab> > > m_stencil;
+    Vector<std::unique_ptr<MultiFab> > m_nosigma_stencil;
     Vector<Vector<Real> > m_s0_norm0;
 
     Real m_normalization_threshold = Real(1.e-8);
@@ -177,8 +188,9 @@ private:
     bool m_integral_built = false;
 #endif
 
-    bool m_use_gauss_seidel = true;
+    bool m_use_gauss_seidel     = true;
     bool m_use_harmonic_average = false;
+    bool m_use_mapped           = false;
 
     virtual void checkPoint (std::string const& file_name) const final;
 };

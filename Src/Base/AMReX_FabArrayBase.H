@@ -533,7 +533,7 @@ public:
     {
         CPC (const FabArrayBase& dstfa, const IntVect& dstng,
              const FabArrayBase& srcfa, const IntVect& srcng,
-             const Periodicity& period);
+             const Periodicity& period, bool to_ghost_cells_only = false);
         CPC (const BoxArray& dstba, const DistributionMapping& dstdm,
              const Vector<int>& dstidx, const IntVect& dstng,
              const BoxArray& srcba, const DistributionMapping& srcdm,
@@ -550,6 +550,7 @@ public:
         IntVect     m_srcng;
         IntVect     m_dstng;
         Periodicity m_period;
+        bool        m_tgco;
         BoxArray    m_srcba;
         BoxArray    m_dstba;
         //
@@ -571,7 +572,7 @@ public:
     static CacheStats m_CPC_stats;
     //
     const CPC& getCPC (const IntVect& dstng, const FabArrayBase& src, const IntVect& srcng,
-                       const Periodicity& period) const;
+                       const Periodicity& period, bool to_ghost_cells_only = false) const;
     //
     void flushCPC (bool no_assertion=false) const;      //!< This flushes its own CPC.
     static void flushCPCache (); //!< This flusheds the entire cache.
@@ -654,6 +655,7 @@ public:
         ~ParForInfo ();
 
         std::pair<int*,int*> const& getBlocks () const { return m_nblocks_x; }
+        Box const* getBoxes () const { return m_boxes; }
 
         ParForInfo () = delete;
         ParForInfo (ParForInfo const&) = delete;
@@ -666,6 +668,9 @@ public:
         IntVect m_ng;
         int m_nthreads;
         std::pair<int*,int*> m_nblocks_x;
+        Box* m_boxes = nullptr;
+        char* m_hp = nullptr;
+        char* m_dp = nullptr;
     };
 
     ParForInfo const& getParForInfo (const IntVect& nghost, int nthreads) const;

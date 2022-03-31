@@ -3,17 +3,23 @@
 #include <AMReX_Config.H>
 
 #include <AMReX_Array.H>
+#ifdef AMREX_USE_EB
 #include <AMReX_EBFabFactory.H>
+#endif
 #include <AMReX_MLNodeLinOp.H>
 
 #include <limits>
 
 namespace amrex {
 
-// del dot (sigma grad phi) = rhs
+// Although the class has EB in the name, it works for non-EB build too.
+//
+// del dot (sigma grad phi) = rhs, for non-RZ
 // where phi and rhs are nodal multifab, and sigma is a tensor constant
-// with only diagonal components.  Only periodic and Dirichlet are supported
-// at domain boundaries.  The EB is assumed to be Dirichlet.
+// with only diagonal components.  The EB is assumed to be Dirichlet.
+//
+// del dot grad phi - alpha/r^2 phi = rhs, for RZ
+// where alpha is a scalar constant.  For now, it is assumed alpha.
 
 class MLEBNodeFDLaplacian
     : public MLNodeLinOp
@@ -21,11 +27,19 @@ class MLEBNodeFDLaplacian
 public:
 
     MLEBNodeFDLaplacian () noexcept {}
+
+#ifdef AMREX_USE_EB
     MLEBNodeFDLaplacian (const Vector<Geometry>& a_geom,
                          const Vector<BoxArray>& a_grids,
                          const Vector<DistributionMapping>& a_dmap,
                          const LPInfo& a_info,
                          const Vector<EBFArrayBoxFactory const*>& a_factory);
+#endif
+
+    MLEBNodeFDLaplacian (const Vector<Geometry>& a_geom,
+                         const Vector<BoxArray>& a_grids,
+                         const Vector<DistributionMapping>& a_dmap,
+                         const LPInfo& a_info);
 
     virtual ~MLEBNodeFDLaplacian ();
 
@@ -36,13 +50,15 @@ public:
 
     void setSigma (Array<Real,AMREX_SPACEDIM> const& a_sigma) noexcept;
 
+    void setRZ (bool flag);
+
+#ifdef AMREX_USE_EB
+
     // Phi on EB
     void setEBDirichlet (Real a_phi_eb);
     //
     template <typename F>
-    std::enable_if_t<
-        std::is_same<std::decay_t<decltype(std::declval<F>()(AMREX_D_DECL(Real(0.),Real(0.),Real(0.))))>,
-                     Real>::value>
+    std::enable_if_t<IsCallableR<Real,F,AMREX_D_DECL(Real,Real,Real)>::value>
     setEBDirichlet (F&& f);
 
     void define (const Vector<Geometry>& a_geom,
@@ -52,6 +68,15 @@ public:
                  const Vector<EBFArrayBoxFactory const*>& a_factory);
 
     virtual std::unique_ptr<FabFactory<FArrayBox> > makeFactory (int amrlev, int mglev) const final override;
+
+    virtual void scaleRHS (int amrlev, MultiFab& rhs) const final;
+
+#endif
+
+    void define (const Vector<Geometry>& a_geom,
+                 const Vector<BoxArray>& a_grids,
+                 const Vector<DistributionMapping>& a_dmap,
+                 const LPInfo& a_info);
 
     virtual std::string name () const override { return std::string("MLEBNodeFDLaplacian"); }
 
@@ -76,7 +101,7 @@ public:
     virtual void compGrad (int amrlev, const Array<MultiFab*,AMREX_SPACEDIM>& grad,
                            MultiFab& sol, Location /*loc*/) const override;
 
-#if defined(AMREX_USE_HYPRE)
+#if defined(AMREX_USE_HYPRE) && (AMREX_SPACEDIM > 1)
     virtual void fillIJMatrix (MFIter const& mfi,
                                Array4<HypreNodeLap::AtomicInt const> const& gid,
                                Array4<int const> const& lid,
@@ -91,17 +116,16 @@ public:
 #endif
 
 private:
-    GpuArray<Real,AMREX_SPACEDIM> m_sigma;
+    GpuArray<Real,AMREX_SPACEDIM> m_sigma{AMREX_D_DECL(1_rt,1_rt,1_rt)};
     Real m_s_phi_eb = std::numeric_limits<Real>::lowest();
     Vector<MultiFab> m_phi_eb;
-    Vector<MultiFab> m_acoef;
-    Real m_a_huge = 1.0;
+    int m_rz = false;
 };
 
+#ifdef AMREX_USE_EB
+
 template <typename F>
-std::enable_if_t<
-    std::is_same<std::decay_t<decltype(std::declval<F>()(AMREX_D_DECL(Real(0.),Real(0.),Real(0.))))>,
-                 Real>::value>
+std::enable_if_t<IsCallableR<Real,F,AMREX_D_DECL(Real,Real,Real)>::value>
 MLEBNodeFDLaplacian::setEBDirichlet (F&& f)
 {
     m_phi_eb.resize(m_num_amr_levels);
@@ -113,6 +137,7 @@ MLEBNodeFDLaplacian::setEBDirichlet (F&& f)
             auto const cellsize = geom.CellSizeArray();
             m_phi_eb[amrlev].define(amrex::convert(m_grids[amrlev][0],IntVect(1)),
                                     m_dmap[amrlev][0], 1, 1);
+            m_phi_eb[amrlev].setVal(0.0);
             auto const& flags = factory->getMultiEBCellFlagFab();
             auto const& levset = factory->getLevelSet();
 #ifdef AMREX_USE_OMP
@@ -137,8 +162,9 @@ MLEBNodeFDLaplacian::setEBDirichlet (F&& f)
             }
         }
     }
-    return Real(0.);
 }
+
+#endif
 
 }
 
