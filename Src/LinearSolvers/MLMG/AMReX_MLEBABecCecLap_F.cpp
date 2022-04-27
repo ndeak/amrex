@@ -92,7 +92,7 @@ MLEBABecCecLap::Fapply (int amrlev, int mglev, MultiFab& out, const MultiFab& in
                 mlabecceclap_adotx(tbx, yfab, xfab, afab,
                                 AMREX_D_DECL(bxfab,byfab,bzfab),
                                 AMREX_D_DECL(cxfab,cyfab,czfab),
-                                dxinvarr, ascalar, bscalar, cscalar, ncomp);
+                                dxinvarr, ascalar, bscalar, cscalar, ncomp, m_uw_order);
             });
         } else {
             Array4<int const> const& ccmfab = ccmask.const_array(mfi);
@@ -279,7 +279,7 @@ MLEBABecCecLap::Fsmooth (int amrlev, int mglev, MultiFab& sol, const MultiFab& r
                           AMREX_D_DECL(m1,m3,m5),
                           AMREX_D_DECL(f0fab,f2fab,f4fab),
                           AMREX_D_DECL(f1fab,f3fab,f5fab),
-                          vbx, redblack, nc);
+                          vbx, redblack, nc, m_uw_order);
             });
         }
         else
@@ -374,7 +374,7 @@ MLEBABecCecLap::FFlux (int amrlev, const MFIter& mfi, const Array<FArrayBox*,AMR
         MLABecCecLaplacian::FFlux(box, dxinv, m_b_scalar, m_c_scalar,
                                Array<FArrayBox const*,AMREX_SPACEDIM>{AMREX_D_DECL(&bx,&by,&bz)},
                                Array<FArrayBox const*,AMREX_SPACEDIM>{AMREX_D_DECL(&cx,&cy,&cz)},
-                               flux, sol, face_only, ncomp);
+                               flux, sol, face_only, ncomp, m_uw_order);
     } else if (compute_flux_at_centroid) {
         const auto& area = factory->getAreaFrac();
         const auto& fcent = factory->getFaceCent();

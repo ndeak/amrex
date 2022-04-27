@@ -42,6 +42,7 @@ public:
 
     void setScalars (Real a, Real b, Real c);
     void setRelaxation (Real omega) noexcept;
+    void setUWOrder (int uw_order) noexcept;
     void setACoeffs (int amrlev, const MultiFab& alpha);
     void setACoeffs (int amrlev, Real alpha);
 
@@ -155,6 +156,7 @@ protected:
     Real m_b_scalar = std::numeric_limits<Real>::quiet_NaN();
     Real m_c_scalar = std::numeric_limits<Real>::quiet_NaN();
     Real m_omega    = std::numeric_limits<Real>::quiet_NaN();
+    Real m_uw_order    = std::numeric_limits<Real>::quiet_NaN();
 
     Vector<Vector<MultiFab> > m_a_coeffs;
     Vector<Vector<Array<MultiFab,AMREX_SPACEDIM> > > m_b_coeffs;

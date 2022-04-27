@@ -131,6 +131,8 @@ void mlebabecceclap_adotx_centroid (Box const& box, Array4<Real> const& y,
                         GpuArray<Real,AMREX_SPACEDIM> const& dxinv,
                         Real alpha, Real beta, Real eta, int ncomp) noexcept
 {
+    // FIXME: make second order
+
     Real dhx = beta*dxinv[0]*dxinv[0];
     Real dhy = beta*dxinv[1]*dxinv[1];
     Real dhz = beta*dxinv[2]*dxinv[2];
@@ -354,6 +356,8 @@ void mlebabecceclap_adotx (Box const& box, Array4<Real> const& y,
                         Real alpha, Real beta, Real eta, int ncomp,
                         bool beta_on_centroid, bool phi_on_centroid) noexcept
 {
+    // FIXME: make second order
+
     Real dhx = beta*dxinv[0]*dxinv[0];
     Real dhy = beta*dxinv[1]*dxinv[1];
     Real dhz = beta*dxinv[2]*dxinv[2];
@@ -787,6 +791,8 @@ void mlebabecceclap_gsrb (Box const& box,
 {
     // constexpr Real omega = 1.15;
     constexpr Real omega = 0.7;
+
+    // FIXME: make second order
 
     const auto vlo = amrex::lbound(vbox);
     const auto vhi = amrex::ubound(vbox);

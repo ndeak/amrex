@@ -134,6 +134,12 @@ MLEBABecCecLap::setRelaxation (Real omega) noexcept
 }
 
 void
+MLEBABecCecLap::setUWOrder (int uw_order) noexcept
+{
+   m_uw_order = uw_order;
+}
+
+void
 MLEBABecCecLap::setACoeffs (int amrlev, const MultiFab& alpha)
 {
     MultiFab::Copy(m_a_coeffs[amrlev][0], alpha, 0, 0, 1, 0);
@@ -979,7 +985,7 @@ MLEBABecCecLap::normalize (int amrlev, int mglev, MultiFab& mf) const
             AMREX_LAUNCH_HOST_DEVICE_LAMBDA (bx, tbx,
             {
                 mlabecceclap_normalize(tbx, fab, afab, AMREX_D_DECL(bxfab, byfab, bzfab), AMREX_D_DECL(cxfab, cyfab, czfab), 
-                                    dxinvarray, ascalar, bscalar, cscalar, ncomp);
+                                    dxinvarray, ascalar, bscalar, cscalar, ncomp, m_uw_order);
             });
         }
         else if (fabtyp == FabType::singlevalued)
