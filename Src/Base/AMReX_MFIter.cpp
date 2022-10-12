@@ -209,6 +209,19 @@ MFIter::MFIter (const FabArrayBase& fabarray_, const MFItInfo& info)
 
 MFIter::~MFIter ()
 {
+    Finalize();
+}
+
+void
+MFIter::Finalize ()
+{
+    // avoid double finalize
+    if (finalized) return;
+    finalized = true;
+
+    // mark as invalid
+    currentIndex = endIndex;
+
 #ifdef AMREX_USE_OMP
 #pragma omp master
 #endif
@@ -222,7 +235,7 @@ MFIter::~MFIter ()
 #endif
 
 #ifdef AMREX_USE_GPU
-    if (device_sync) Gpu::synchronize();
+    if (device_sync) Gpu::streamSynchronizeAll();
 #endif
 
 #ifdef AMREX_USE_GPU
@@ -250,6 +263,15 @@ MFIter::Initialize ()
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(depth == 1 || MFIter::allow_multiple_mfiters,
             "Nested or multiple active MFIters is not supported by default.  This can be changed by calling MFIter::allowMultipleMFIters(true)".);
     }
+
+#ifdef AMREX_USE_GPU
+    if (device_sync) {
+#ifdef AMREX_USE_OMP
+#pragma omp single
+#endif
+        Gpu::streamSynchronize();
+    }
+#endif
 
     if (flags & AllBoxes)  // a very special case
     {

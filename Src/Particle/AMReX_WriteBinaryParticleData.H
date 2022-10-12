@@ -184,11 +184,11 @@ packIOData (Vector<int>& idata, Vector<ParticleReal>& rdata, const PC& pc, int l
 
     typename PC::IntVector write_int_comp_d(write_int_comp.size());
     typename PC::IntVector write_real_comp_d(write_real_comp.size());
-    Gpu::copy(Gpu::hostToDevice, write_int_comp.begin(), write_int_comp.end(),
-              write_int_comp_d.begin());
-    Gpu::copy(Gpu::hostToDevice, write_real_comp.begin(), write_real_comp.end(),
-              write_real_comp_d.begin());
-    Gpu::Device::synchronize();
+    Gpu::copyAsync(Gpu::hostToDevice, write_int_comp.begin(), write_int_comp.end(),
+                   write_int_comp_d.begin());
+    Gpu::copyAsync(Gpu::hostToDevice, write_real_comp.begin(), write_real_comp.end(),
+                   write_real_comp_d.begin());
+    Gpu::Device::streamSynchronize();
 
     const auto write_int_comp_d_ptr = write_int_comp_d.data();
     const auto write_real_comp_d_ptr = write_real_comp_d.data();
@@ -231,9 +231,23 @@ packIOData (Vector<int>& idata, Vector<ParticleReal>& rdata, const PC& pc, int l
                     }
                 }
 
+                for (int j = 0; j < ptd.m_num_runtime_int; j++) {
+                    if (write_int_comp_d_ptr[PC::SuperParticleType::NInt + j]) {
+                        idata_d_ptr[iout_index] = ptd.m_runtime_idata[j][pindex];
+                        iout_index++;
+                    }
+                }
+
                 for (int j = 0; j < PC::SuperParticleType::NReal; j++) {
                     if (write_real_comp_d_ptr[j]) {
                         rdata_d_ptr[rout_index] = p.rdata(j);
+                        rout_index++;
+                    }
+                }
+
+                for (int j = 0; j < ptd.m_num_runtime_real; j++) {
+                    if (write_real_comp_d_ptr[PC::SuperParticleType::NReal + j]) {
+                        rdata_d_ptr[rout_index] = ptd.m_runtime_rdata[j][pindex];
                         rout_index++;
                     }
                 }
@@ -243,9 +257,9 @@ packIOData (Vector<int>& idata, Vector<ParticleReal>& rdata, const PC& pc, int l
         poffset += num_copies;
     }
 
-    Gpu::copy(Gpu::deviceToHost, idata_d.begin(), idata_d.end(), idata.begin());
-    Gpu::copy(Gpu::deviceToHost, rdata_d.begin(), rdata_d.end(), rdata.begin());
-    Gpu::Device::synchronize();
+    Gpu::copyAsync(Gpu::deviceToHost, idata_d.begin(), idata_d.end(), idata.begin());
+    Gpu::copyAsync(Gpu::deviceToHost, rdata_d.begin(), rdata_d.end(), rdata.begin());
+    Gpu::Device::streamSynchronize();
 }
 
 template <class PC>
@@ -375,7 +389,7 @@ void WriteBinaryParticleDataSync (PC const& pc,
         }
     }
 
-    Gpu::Device::synchronize();
+    Gpu::Device::streamSynchronize();
 
     if(pc.GetUsePrePost())
     {
@@ -406,18 +420,18 @@ void WriteBinaryParticleDataSync (PC const& pc,
         if ( ! HdrFile.good()) amrex::FileOpenFailed(HdrFileName);
 
         //
-        // First thing written is our Checkpoint/Restart version string.
+        // First thing written is our version string.
         // We append "_single" or "_double" to the version string indicating
-        // whether we're using "float" or "double" floating point data in the
-        // particles so that we can Restart from the checkpoint files.
+        // whether we're using "float" or "double" floating point data.
         //
+        std::string version_string = is_checkpoint ? PC::CheckpointVersion() : PC::PlotfileVersion();
         if (sizeof(typename PC::ParticleType::RealType) == 4)
         {
-            HdrFile << PC::Version() << "_single" << '\n';
+            HdrFile << version_string << "_single" << '\n';
         }
         else
         {
-            HdrFile << PC::Version() << "_double" << '\n';
+            HdrFile << version_string << "_double" << '\n';
         }
 
         int num_output_real = 0;
@@ -752,7 +766,25 @@ void WriteBinaryParticleDataAsync (PC const& pc,
             if (np_per_grid_local[lev][mfi.index()] > 0)
             {
                 const auto& ptile = pc.ParticlesAt(lev, mfi);
-                new_ptile.resize(np_per_grid_local[lev][mfi.index()]);
+
+                const auto np = np_per_grid_local[lev][mfi.index()];
+
+                new_ptile.resize(np);
+
+                const auto runtime_real_comps = ptile.NumRuntimeRealComps();
+                const auto runtime_int_comps = ptile.NumRuntimeIntComps();
+
+                constexpr auto NReal = NArrayReal + NStructReal;
+                constexpr auto NInt = NArrayInt + NStructInt;
+
+                new_ptile.define(runtime_real_comps, runtime_int_comps);
+
+                for (auto comp(0); comp < runtime_real_comps; ++comp)
+                  new_ptile.push_back_real(NReal+comp, np, 0.);
+
+                for (auto comp(0); comp < runtime_int_comps; ++comp)
+                  new_ptile.push_back_int(NInt+comp, np, 0);
+
                 amrex::filterParticles(new_ptile, ptile, KeepValidFilter());
             }
         }
@@ -791,13 +823,14 @@ void WriteBinaryParticleDataAsync (PC const& pc,
 
             if ( ! HdrFile.good()) amrex::FileOpenFailed(HdrFileName);
 
+            std::string version_string = is_checkpoint ? PC::CheckpointVersion() : PC::PlotfileVersion();
             if (sizeof(typename PC::ParticleType::RealType) == 4)
             {
-                HdrFile << PC::Version() << "_single" << '\n';
+                HdrFile << version_string << "_single" << '\n';
             }
             else
             {
-                HdrFile << PC::Version() << "_double" << '\n';
+                HdrFile << version_string << "_double" << '\n';
             }
 
             int num_output_real = 0;

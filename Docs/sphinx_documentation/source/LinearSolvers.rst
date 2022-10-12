@@ -35,11 +35,12 @@ below
                      const Vector<BoxArray>& a_grids,
                      const Vector<DistributionMapping>& a_dmap,
                      const LPInfo& a_info = LPInfo(),
-                     const Vector<FabFactory<FArrayBox> const*>& a_factory = {});
+                     const Vector<FabFactory<FArrayBox> const*>& a_factory = {},
+                     const int a_ncomp = 1);
 
 It takes :cpp:`Vectors` of :cpp:`Geometry`, :cpp:`BoxArray` and
 :cpp:`DistributionMapping`.  The arguments are :cpp:`Vectors` because MLMG can
-do multi-level composite solve.  If you are using it for single-level,
+do multi-level composite solves.  If you are using it for single-level,
 you can do
 
 .. highlight:: c++
@@ -60,25 +61,72 @@ After the linear operator is built, we need to set up boundary
 conditions.  This will be discussed later in section
 :ref:`sec:linearsolver:bc`.
 
-For :cpp:`MLABecLaplacian`, we next need to call member functions
+Coefficients
+------------
 
-.. highlight:: c++
+Next, we consider the coefficients for equation :eq:`eqn::abeclap`.
+For :cpp:`MLPoisson`, there are no coefficients to set so nothing needs to be done.
+For :cpp:`MLABecLaplacian`, we need to call member functions :cpp:`setScalars`,
+:cpp:`setACoeffs`, and :cpp:`setBCoeffs`.
+The :cpp:`setScalars` function sets the scalar constants :math:`A` and :math:`B`
 
-::
+.. code-block::
 
-    void setScalars (Real A, Real B);
-    void setACoeffs (int amrlev, const MultiFab& alpha);
-    void setBCoeffs (int amrlev, const Array<MultiFab const*,AMREX_SPACEDIM>& beta);
+    void setScalars (Real a, Real b) noexcept;
 
-to set up the coefficients for equation :eq:`eqn::abeclap`. This is unnecessary for
-:cpp:`MLPoisson`, as there are no coefficients to set.  For :cpp:`MLNodeLaplacian`,
-one needs to call the member function
+
+For the general case where
+:math:`\alpha` and :math:`\beta` are scalar fields, we use
+
+  .. code-block::
+
+      void setACoeffs (int amrlev, const MultiFab& alpha);
+      void setBCoeffs (int amrlev, const Array<MultiFab const*,AMREX_SPACEDIM>& beta);
+
+For the case where :math:`\alpha` and/or :math:`\beta` are scalar constants,
+there is the option to use
+
+  .. code-block::
+
+      void setACoeffs (int amrlev, Real alpha);
+      void setBCoeffs (int amrlev, Real beta);
+      void setBCoeffs (int amrlev, Vector<Real> const& beta);
+
+Note, however, that the solver behaviour is the same regardless of which functions you
+use to set the coefficients. These functions solely copy the constant value(s) to a MultiFab
+internal to ``MLMG`` and so no appreciable efficiency gains can be expected.
+
+For :cpp:`MLNodeLaplacian`,
+one can set a variable :cpp:`sigma` with the member function
 
 .. highlight:: c++
 
 ::
 
     void setSigma (int amrlev, const MultiFab& a_sigma);
+
+or a constant :cpp:`sigma` during declaration or definition
+
+.. highlight:: c++
+
+::
+
+    MLNodeLaplacian (const Vector<Geometry>& a_geom,
+                     const Vector<BoxArray>& a_grids,
+                     const Vector<DistributionMapping>& a_dmap,
+                     const LPInfo& a_info = LPInfo(),
+                     const Vector<FabFactory<FArrayBox> const*>& a_factory = {},
+                     Real  a_const_sigma = Real(0.0));
+
+    void define (const Vector<Geometry>& a_geom,
+                 const Vector<BoxArray>& a_grids,
+                 const Vector<DistributionMapping>& a_dmap,
+                 const LPInfo& a_info = LPInfo(),
+                 const Vector<FabFactory<FArrayBox> const*>& a_factory = {},
+                 Real  a_const_sigma = Real(0.0));
+
+Here, setting a constant :cpp:`sigma` alters the internal behavior of the solver making it more
+efficient for this special case.
 
 The :cpp:`int amrlev` parameter should be zero for single-level
 solves.  For multi-level solves, each level needs to be provided with
@@ -174,6 +222,8 @@ The supported BC types at the physical domain boundaries are
 
 - :cpp:`LinOpBCType::inhomogNeumann` for inhomogeneous Neumann boundary condition.
 
+- :cpp:`LinOpBCType::Robin` for Robin boundary conditions, :math:`a\phi + b\frac{\partial\phi}{\partial n} = f`.
+
 - :cpp:`LinOpBCType::reflect_odd` for reflection with sign changed.
 
 2) Cell-centered solvers only:
@@ -207,12 +257,12 @@ before the solve one must always call the :cpp:`MLLinOp` member function
 ::
 
     virtual void setLevelBC (int amrlev, const MultiFab* levelbcdata,
-                             const MultiFab* robinbc_a,
-                             const MultiFab* robinbc_b,
-                             const MultiFab* robinbc_f) = 0;
+                             const MultiFab* robinbc_a = nullptr,
+                             const MultiFab* robinbc_b = nullptr,
+                             const MultiFab* robinbc_f = nullptr) = 0;
 
-If we want to supply an inhomogeneous Dirichlet, inhomogeneous Neumann, or
-Robin boundary conditions at the domain boundaries, we must supply those values
+If we want to supply an inhomogeneous Dirichlet or inhomogeneous Neumann
+boundary condition at the domain boundaries, we must supply those values
 in ``MultiFab* levelbcdata``, which must have at least one ghost cell.
 Note that the argument :cpp:`amrlev` is relative to the solve, not
 necessarily the full AMR hierarchy; amrlev = 0 refers to the coarsest
@@ -237,6 +287,11 @@ It should be emphasized that the data in ``levelbcdata`` for
 Dirichlet or Neumann boundaries are assumed to be exactly on the face
 of the physical domain; storing these values in the ghost cell of
 a cell-centered array is a convenience of implementation.
+
+For Robin boundary conditions, the ghost cells in
+``MultiFab* robinbc_a``, ``MultiFab* robinbc_b``, and ``MultiFab* robinbc_f``
+store the numerical values in the condition,
+:math:`a\phi + b\frac{\partial\phi}{\partial n} = f`.
 
 .. _sec:linearsolver:pars:
 
@@ -340,13 +395,23 @@ to the ghost cell center; :cpp:`maxorder = 3` uses the boundary value and the fi
 Curvilinear Coordinates
 =======================
 
-The linear solvers support curvilinear coordinates including 1D
+Some of the linear solvers support curvilinear coordinates including 1D
 spherical and 2d cylindrical :math:`(r,z)`.  In those cases, the
 divergence operator has extra metric terms.  If one does not want the
 solver to include the metric terms because they have been handled in
-other ways, one can call :cpp:`setMetricTerm(bool)` with :cpp:`false`
+other ways, one can turn them off with a setter funtion. For
+the cell-centered linear solvers `MLABecLaplacian` and `MLPoisson`, one
+can call :cpp:`setMetricTerm(bool)` with :cpp:`false`
 on the :cpp:`LPInfo` object passed to the constructor of linear
 operators.
+For the node-based `MLNodeLaplacian`, one can call :cpp:`setRZCorrection (bool)`
+with :cpp:`false` on the `MLNodeLaplacian` object.
+
+`MLABecLaplacian` and `MLPoisson` support both spherical and cylindrical
+coordinates, while `MLNodeLaplacian` supports only cylindrical at this
+time. Note that to use cylindrical coordinates with `MLNodeLaplacian`,
+the application code must scale ``sigma`` by the radial coordinate
+before calling :cpp:`setSigma()`.
 
 Embedded Boundaries
 ===================
@@ -355,7 +420,8 @@ AMReX supports multi-level solvers for use with embedded boundaries.
 These include
 1) cell-centered solvers with homogeneous Neumann, homogeneous Dirichlet,
 or inhomogeneous Dirichlet boundary conditions on the EB faces, and
-2) nodal solvers with homogeneous Neumann boundary conditions on the EB faces.
+2) nodal solvers with homogeneous Neumann boundary conditions,
+or inflow velocity conditions on the EB faces.
 
 To use a cell-centered solver with EB, one builds a linear operator
 :cpp:`MLEBABecLap` with :cpp:`EBFArrayBoxFactory` (instead of a :cpp:`MLABecLaplacian`)

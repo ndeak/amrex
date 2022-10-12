@@ -57,6 +57,7 @@ public:
 
     void setEBShearViscosity (int amrlev, MultiFab const& eta);
     void setEBShearViscosity (int amrlev, Real eta);
+    void setEBShearViscosityWithInflow (int amrlev, MultiFab const& eta, MultiFab const& eb_vel);
 
     void setEBBulkViscosity (int amrlev, MultiFab const& kappa);
     void setEBBulkViscosity (int amrlev, Real eta);
@@ -104,7 +105,8 @@ public: // for cuda
 
     void applyBCTensor (int amrlev, int mglev, MultiFab& vel,
                         BCMode bc_mode, StateMode s_mode, const MLMGBndry* bndry) const;
-    void compCrossTerms(int amrlev, int mglev, MultiFab const& mf) const;
+    void compCrossTerms(int amrlev, int mglev, MultiFab const& mf,
+                        const MLMGBndry* bndry) const;
 };
 
 }

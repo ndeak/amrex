@@ -382,6 +382,8 @@ std::ostream& operator << (std::ostream& os, const ErrorList& elst);
     int m_max_level = 1000;
     Real m_min_time = std::numeric_limits<Real>::lowest();
     Real m_max_time = std::numeric_limits<Real>::max();
+    int m_volume_weighting = 0;
+    int m_derefine = 0;
     RealBox m_realbox;
 
     AMRErrorTagInfo& SetMaxLevel (int max_level) noexcept {
@@ -400,6 +402,14 @@ std::ostream& operator << (std::ostream& os, const ErrorList& elst);
       m_realbox = realbox;
       return *this;
     }
+    AMRErrorTagInfo& SetVolumeWeighting (int volume_weighting) noexcept {
+      m_volume_weighting = volume_weighting;
+      return *this;
+    }
+    AMRErrorTagInfo& SetDerefine (int derefine) noexcept {
+      m_derefine = derefine;
+      return *this;
+    }
   };
 
   class AMRErrorTag
@@ -410,6 +420,8 @@ std::ostream& operator << (std::ostream& os, const ErrorList& elst);
 
     struct UserFunc
     {
+      virtual ~UserFunc () {}
+
       virtual void operator() (const amrex::Box&                       bx,
                                amrex::Array4<const amrex::Real> const& dat,
                                amrex::Array4<char> const&              tag,
@@ -459,6 +471,8 @@ std::ostream& operator << (std::ostream& os, const ErrorList& elst);
                  int                    ngrow,
                  const AMRErrorTagInfo& info = AMRErrorTagInfo()) noexcept
       : m_userfunc(userfunc), m_field(field), m_info(info), m_ngrow(ngrow) {}
+
+    virtual ~AMRErrorTag () {}
 
     virtual void operator() (amrex::TagBoxArray&    tb,
                              const amrex::MultiFab* mf,

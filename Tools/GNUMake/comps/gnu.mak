@@ -44,6 +44,7 @@ gcc_major_ge_7 = $(shell expr $(gcc_major_version) \>= 7)
 gcc_major_ge_8 = $(shell expr $(gcc_major_version) \>= 8)
 gcc_major_ge_9 = $(shell expr $(gcc_major_version) \>= 9)
 gcc_major_ge_10 = $(shell expr $(gcc_major_version) \>= 10)
+gcc_major_ge_11 = $(shell expr $(gcc_major_version) \>= 11)
 
 ifeq ($(THREAD_SANITIZER),TRUE)
   GENERIC_GNU_FLAGS += -fsanitize=thread
@@ -78,15 +79,25 @@ CXXFLAGS += -Werror=return-type
 CFLAGS   += -Werror=return-type
 
 ifeq ($(DEBUG),TRUE)
-  CXXFLAGS += -g -O0 -ggdb -ftrapv
-  CFLAGS   += -g -O0 -ggdb -ftrapv
+  ifeq ($(gcc_major_ge_11),1)
+    CXXFLAGS += -gdwarf-4 -O0 -ggdb -ftrapv
+    CFLAGS   += -gdwarf-4 -O0 -ggdb -ftrapv
+  else
+    CXXFLAGS += -g -O0 -ggdb -ftrapv
+    CFLAGS   += -g -O0 -ggdb -ftrapv
+  endif
 else
-  CXXFLAGS += -g -O3
-  CFLAGS   += -g -O3
+  ifeq ($(gcc_major_ge_11),1)
+    CXXFLAGS += -gdwarf-4 -O3
+    CFLAGS   += -gdwarf-4 -O3
+  else
+    CXXFLAGS += -g -O3
+    CFLAGS   += -g -O3
+  endif
 endif
 
 ifeq ($(WARN_ALL),TRUE)
-  warning_flags = -Wall -Wextra
+  warning_flags = -Wall -Wextra -Wlogical-op
 
   ifeq ($(WARN_SIGN_COMPARE),FALSE)
     warning_flags += -Wno-sign-compare
@@ -98,7 +109,7 @@ ifeq ($(WARN_ALL),TRUE)
   endif
 
   ifeq ($(gcc_major_ge_6),1)
-    warning_flags += -Wnull-dereference
+    warning_flags += -Wnull-dereference -Wmisleading-indentation -Wduplicated-cond
   endif
 
   ifeq ($(gcc_major_ge_5),1)
@@ -113,11 +124,15 @@ ifeq ($(WARN_ALL),TRUE)
     warning_flags += -Wno-array-bounds
   endif
 
+  ifeq ($(gcc_major_ge7),1)
+    warning_flags += -Wduplicated-branches
+  endif
+
   ifeq ($(gcc_major_ge10),1)
     warning_flags += -Wextra-semi
   endif
 
-  CXXFLAGS += $(warning_flags) -Woverloaded-virtual
+  CXXFLAGS += $(warning_flags) -Woverloaded-virtual -Wnon-virtual-dtor
   CFLAGS += $(warning_flags)
 endif
 

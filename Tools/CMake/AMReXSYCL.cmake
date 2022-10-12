@@ -45,7 +45,7 @@ target_compile_features(SYCL INTERFACE cxx_std_17)
 #
 target_compile_options( SYCL
    INTERFACE
-   $<${_cxx_dpcpp}:-Wno-error=sycl-strict -Wno-pass-failed -fsycl>
+   $<${_cxx_dpcpp}:-Wno-error=sycl-strict -fsycl>
    $<${_cxx_dpcpp}:$<$<BOOL:${AMReX_DPCPP_SPLIT_KERNEL}>:-fsycl-device-code-split=per_kernel>>)
 
 # temporary work-around for DPC++ beta08 bug
@@ -114,12 +114,12 @@ target_link_options( SYCL
 if (AMReX_DPCPP_AOT)
    target_compile_options( SYCL
       INTERFACE
-      "$<${_cxx_dpcpp}:-fsycl-targets=spir64_gen-unknown-unknown-sycldevice>"
+      "$<${_cxx_dpcpp}:-fsycl-targets=spir64_gen>"
       "$<${_cxx_dpcpp}:SHELL:-Xsycl-target-backend \"-device ${AMReX_INTEL_ARCH}\">" )
 
    target_link_options( SYCL
       INTERFACE
-      "$<${_cxx_dpcpp}:-fsycl-targets=spir64_gen-unknown-unknown-sycldevice>"
+      "$<${_cxx_dpcpp}:-fsycl-targets=spir64_gen>"
       "$<${_cxx_dpcpp}:SHELL:-Xsycl-target-backend \"-device ${AMReX_INTEL_ARCH}\">" )
 endif ()
 

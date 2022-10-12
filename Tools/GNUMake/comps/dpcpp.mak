@@ -36,8 +36,6 @@ else
 
 endif
 
-CXXFLAGS += -Wno-pass-failed # disable this warning
-
 ifeq ($(WARN_ALL),TRUE)
   warning_flags = -Wall -Wextra -Wno-sign-compare -Wunreachable-code -Wnull-dereference
   warning_flags += -Wfloat-conversion -Wextra-semi
@@ -95,7 +93,7 @@ ifeq ($(DPCPP_AOT),TRUE)
     endif
   endif
   endif
-  CXXFLAGS += -fsycl-targets=spir64_gen-unknown-unknown-sycldevice -Xsycl-target-backend '-device $(INTEL_CPU_SHORT_NAME)'
+  CXXFLAGS += -fsycl-targets=spir64_gen -Xsycl-target-backend '-device $(INTEL_CPU_SHORT_NAME)'
 endif
 endif
 
