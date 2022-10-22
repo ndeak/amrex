@@ -139,7 +139,7 @@ MLABecCecLaplacian::define (const Vector<Geometry>& a_geom,
 
     amrlev = 0;
     for (int mglev = 1; mglev < m_num_mg_levels[amrlev]; ++mglev) {
-        if (! isMFIterSafe(*m_overset_mask[amrlev][mglev], m_a_coeffs[amrlev][mglev])) {
+        if (! amrex::isMFIterSafe(*m_overset_mask[amrlev][mglev], m_a_coeffs[amrlev][mglev])) {
             std::unique_ptr<iMultiFab> osm(new iMultiFab(m_grids[amrlev][mglev],
                                                          m_dmap[amrlev][mglev], 1, 1));
             osm->ParallelCopy(*m_overset_mask[amrlev][mglev]);
@@ -1037,8 +1037,12 @@ MLABecCecLaplacian::update ()
 }
 
 void
-MLABecCecLaplacian::applyOverset (int amrlev, MultiFab& rhs) const
+MLABecCecLaplacian::applyOverset (int amrlev, Any& rhs) const
 {
+
+    AMREX_ASSERT(rhs.is<MultiFab>());
+    MultiFab& rhsm = rhs.get<MultiFab>();
+
     if (m_overset_mask[amrlev][0]) {
         const int ncomp = getNComp();
 #ifdef _OPENMP
@@ -1047,7 +1051,7 @@ MLABecCecLaplacian::applyOverset (int amrlev, MultiFab& rhs) const
         for (MFIter mfi(*m_overset_mask[amrlev][0],TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
             const Box& bx = mfi.tilebox();
-            Array4<Real> const& rfab = rhs.array(mfi);
+            Array4<Real> const& rfab = rhsm.array(mfi);
             Array4<int const> const& osm = m_overset_mask[amrlev][0]->const_array(mfi);
             AMREX_HOST_DEVICE_PARALLEL_FOR_4D(bx, ncomp, i, j, k, n,
             {

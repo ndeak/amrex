@@ -49,7 +49,13 @@ public:
     virtual Array<MultiFab const*,AMREX_SPACEDIM> getBCoeffs (int amrlev, int mglev) const = 0;
     virtual Array<MultiFab const*,AMREX_SPACEDIM> getCCoeffs (int amrlev, int mglev) const = 0;
 
-    virtual void applyInhomogNeumannTerm (int amrlev, MultiFab& rhs) const final override;
+    virtual void applyInhomogNeumannTerm (int amrlev, Any& rhs) const final override;
+
+    virtual void addInhomogNeumannFlux (
+        int amrlev, const Array<MultiFab*,AMREX_SPACEDIM>& grad,
+        MultiFab const& sol, bool mult_bcoef) const final override;
+    
+
 
 #ifdef AMREX_USE_HYPRE
     virtual std::unique_ptr<Hypre> makeHypre (Hypre::Interface hypre_interface) const override;

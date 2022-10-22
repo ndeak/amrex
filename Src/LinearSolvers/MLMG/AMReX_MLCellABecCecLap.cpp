@@ -60,7 +60,7 @@ MLCellABecCecLap::getFluxes (const Vector<Array<MultiFab*,AMREX_SPACEDIM> >& a_f
 }
 
 void
-MLCellABecCecLap::applyInhomogNeumannTerm (int amrlev, MultiFab& rhs) const
+MLCellABecCecLap::applyInhomogNeumannTerm (int amrlev, Any& a_rhs) const
 {
     // int ncomp = rhs.nComp();
     // bool has_inhomog_neumann = false;
@@ -230,6 +230,15 @@ MLCellABecCecLap::applyInhomogNeumannTerm (int amrlev, MultiFab& rhs) const
 //         }
 // 
 //     }
+}
+
+
+void
+MLCellABecCecLap::addInhomogNeumannFlux (
+    int amrlev, const Array<MultiFab*,AMREX_SPACEDIM>& grad, MultiFab const& sol,
+    bool mult_bcoef) const
+{
+
 }
 
 #ifdef AMREX_USE_HYPRE
