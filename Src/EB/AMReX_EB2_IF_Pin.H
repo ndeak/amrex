@@ -14,10 +14,11 @@ class PinIF
 public:
 
     // inside: is the fluid inside the pin?
-    PinIF (Real a_c, const RealArray& a_tip, int a_dir, bool a_inside)
+    PinIF (Real a_c, const RealArray& a_tip, int a_dir,Real rmax, bool a_inside)
         : m_c(a_c),
           m_tip(makeXDim3(a_tip)),
           m_dir(a_dir),
+          m_rmax(rmax),
           m_sign( a_inside ? 1.0 : -1.0 )
         {}
 
@@ -29,6 +30,7 @@ public:
     AMREX_GPU_HOST_DEVICE inline
     Real operator() (AMREX_D_DECL(Real x, Real y, Real z)) const noexcept {
         Real r = 0.0, dist = 0.0;
+        int c_sign = (m_c > 0) ? 1.0 : -1.0;
         switch (m_dir) {
         case 0 :
         {
@@ -46,6 +48,10 @@ public:
 #if (AMREX_SPACEDIM == 3)
             r = std::pow( (x-m_tip.x)*(x-m_tip.x)+(z-m_tip.z)*(z-m_tip.z), 0.5 );
             dist = y - (m_tip.y + m_c*r*r);
+            // Added by Alfredo to limit the maximum radius of th pin
+            Real zmax = m_tip.y+m_c*m_rmax*m_rmax;
+            if ((c_sign<0)&&(y<zmax)) dist = (r*r-m_rmax*m_rmax);
+            if ((c_sign>0)&&(y>zmax)) dist = -(r*r-m_rmax*m_rmax);
 #elif (AMREX_SPACEDIM == 2)
             r = (x - m_tip.x);
             dist = y - (m_tip.y + m_c*r*r);
@@ -64,7 +70,7 @@ public:
             break;
         }
         }
-        int c_sign = (m_c > 0) ? 1.0 : -1.0;
+        //int c_sign = (m_c > 0) ? 1.0 : -1.0;
         // printf("Coords are (%.2f , %.2f, %.2f) : dist = %.6f\n", x, y, z, dist);
         return -1.0 * m_sign * dist * c_sign;
     }
@@ -76,6 +82,7 @@ public:
 protected:
   
     Real  m_c;
+    Real  m_rmax;
     XDim3 m_tip;
     int m_dir;
     //
